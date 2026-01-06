@@ -27,7 +27,7 @@ const ai = new GoogleGenerativeAI(apiKey);
 
 // Default Configuration for External Integrations (N8N / Webhooks)
 let INTEGRATION_CONFIG = {
-    linkedinApiUrl: 'https://n8n-production-3f14.up.railway.app/webhook-test/275acb0f-4966-4205-83c8-5fc86b0e7fb1',
+    linkedinApiUrl: 'https://n8n-production-3f14.up.railway.app/webhook-test/020ab1c4-1d07-4715-8262-d97193c421b5',
     jobAlertsApiUrl: 'https://n8n-production-3f14.up.railway.app/webhook/bc4a44fa-2a16-4108-acb1-34c2353e9476'
 };
 

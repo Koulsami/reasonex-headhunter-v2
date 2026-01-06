@@ -5,7 +5,8 @@ import SearchTab from './components/SearchTab';
 import KanbanTab from './components/KanbanTab';
 import IntelligenceTab from './components/IntelligenceTab';
 import AdminPanel from './components/AdminPanel';
-import { getMockDataSync, api } from './services/apiService'; 
+import { getMockDataSync, api } from './services/apiService';
+import { setIntegrationConfig } from './services/geminiService';
 import { v4 as uuidv4 } from 'uuid';
 
 type Tab = 'search' | 'kanban' | 'intelligence' | 'admin';
@@ -32,8 +33,22 @@ const App: React.FC = () => {
         setJobs(data.jobs);
         setCandidates(data.candidates);
         setUsers(data.users);
+
+        // If backend has config, update geminiService integration URLs
+        if (data.config) {
+          setSystemConfig(data.config);
+          setIntegrationConfig({
+            linkedinApiUrl: data.config.linkedinApiUrl,
+            jobAlertsApiUrl: data.config.jobAlertsApiUrl
+          });
+        }
       } catch (e) {
         console.warn("Using offline/mock data");
+        // Set default integration config from initial mock data
+        setIntegrationConfig({
+          linkedinApiUrl: systemConfig.linkedinApiUrl,
+          jobAlertsApiUrl: systemConfig.jobAlertsApiUrl
+        });
       }
     };
     loadData();
@@ -154,6 +169,11 @@ const App: React.FC = () => {
   const handleUpdateConfig = async (config: SystemConfig) => {
     await api.updateSystemConfig(config);
     setSystemConfig(config);
+    // Update geminiService with new integration URLs
+    setIntegrationConfig({
+      linkedinApiUrl: config.linkedinApiUrl,
+      jobAlertsApiUrl: config.jobAlertsApiUrl
+    });
   };
 
   // --- RENDER ---

@@ -1,5 +1,5 @@
 
-import { GoogleGenAI, Type } from "@google/genai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import { SearchResult, NewsItem, CandidateSearchResponse, RawSearchResult, Candidate } from "../types";
 
 /**
@@ -23,7 +23,7 @@ const getApiKey = () => {
 };
 
 const apiKey = getApiKey();
-const ai = new GoogleGenAI({ apiKey: apiKey });
+const ai = new GoogleGenerativeAI(apiKey);
 
 // Default Configuration for External Integrations (N8N / Webhooks)
 let INTEGRATION_CONFIG = {
@@ -84,25 +84,20 @@ export const analyzeJobDescription = async (jd: string): Promise<SearchResult> =
       };
   }
   try {
-    const prompt = `Analyze this job description and extract a boolean search string and list of keywords: ${jd}`;
-    const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview', // High speed, low cost model for text analysis
-      contents: prompt,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            booleanString: { type: Type.STRING },
-            keywords: { type: Type.ARRAY, items: { type: Type.STRING } }
-          },
-          required: ["booleanString", "keywords"]
-        }
-      }
-    });
+    const model = ai.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const prompt = `Analyze this job description and extract a boolean search string for LinkedIn/Google and a list of keywords. Return as JSON with format: {"booleanString": "...", "keywords": ["..."]}. Job Description: ${jd}`;
 
-    if (response.text) return JSON.parse(response.text) as SearchResult;
-    throw new Error("No response text from Gemini");
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    const text = response.text();
+
+    // Try to parse JSON from response
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      return JSON.parse(jsonMatch[0]) as SearchResult;
+    }
+
+    throw new Error("No valid JSON in response");
   } catch (error) {
     console.error("Gemini Analysis Failed:", error);
     return {

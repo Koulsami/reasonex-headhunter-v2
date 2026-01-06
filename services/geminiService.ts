@@ -229,13 +229,91 @@ export const fetchJobAlerts = async (): Promise<NewsItem[]> => {
 };
 
 export const getClientNews = async (clientName: string): Promise<{ news: NewsItem[] }> => {
-    return { news: [] };
+    // This could be implemented with a news API webhook if configured
+    // For now, returns mock data for demonstration
+    return {
+        news: [
+            {
+                title: `${clientName} announces Q4 results`,
+                source: "Business Wire",
+                url: "#",
+                snippet: "Financial performance exceeds expectations...",
+                date: "2 days ago"
+            },
+            {
+                title: `${clientName} expands into new markets`,
+                source: "Reuters",
+                url: "#",
+                snippet: "Strategic expansion initiative announced...",
+                date: "1 week ago"
+            }
+        ]
+    };
 };
 
 export const getIndustryNews = async (sourceName: string, url: string): Promise<{ news: NewsItem[], alerts: NewsItem[] }> => {
-    return { news: [], alerts: [] };
+    // RSS feed parsing requires backend due to CORS
+    // Returns mock data for demonstration
+    return {
+        news: [
+            {
+                title: "Latest trends in HR technology",
+                source: sourceName,
+                url: url,
+                snippet: "How AI is transforming recruitment processes...",
+                date: "1 day ago"
+            },
+            {
+                title: "Salary benchmarks for tech roles",
+                source: sourceName,
+                url: url,
+                snippet: "2024 compensation analysis for software engineers...",
+                date: "3 days ago"
+            },
+            {
+                title: "Remote work policy updates",
+                source: sourceName,
+                url: url,
+                snippet: "Major companies adjusting hybrid work policies...",
+                date: "5 days ago"
+            }
+        ],
+        alerts: [
+            {
+                title: "Breaking: Tech layoffs announced",
+                source: sourceName,
+                url: url,
+                snippet: "Major tech company reduces workforce...",
+                date: "2 hours ago"
+            }
+        ]
+    };
 };
 
 export const fetchBlogPosts = async (sourceName: string, url: string): Promise<NewsItem[]> => {
-    return [];
+    // Blog RSS parsing requires backend due to CORS
+    // Returns mock data for demonstration
+    return [
+        {
+            title: "5 tips for effective candidate sourcing",
+            source: sourceName,
+            url: url,
+            snippet: "Proven strategies to find top talent in competitive markets...",
+            date: "1 day ago"
+        },
+        {
+            title: "The future of recruitment automation",
+            source: sourceName,
+            url: url,
+            snippet: "How AI tools are changing the hiring landscape...",
+            date: "3 days ago"
+        },
+        {
+            title: "Building diverse hiring pipelines",
+            source: sourceName,
+            url: url,
+            snippet: "Best practices for inclusive recruitment strategies...",
+            date: "1 week ago"
+        }
+    ];
 };

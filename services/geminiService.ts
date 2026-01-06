@@ -112,9 +112,9 @@ export const analyzeJobDescription = async (jd: string): Promise<SearchResult> =
  * that performs the actual LinkedIn scraping/searching.
  */
 export const searchLinkedInCandidates = async (
-  jobContext: string, 
-  country: string, 
-  numCandidatesAnalyze: number, 
+  jobContext: string,
+  country: string,
+  numCandidatesAnalyze: number,
   numCandidatesOutput: number
 ): Promise<CandidateSearchResponse> => {
   try {
@@ -133,14 +133,35 @@ export const searchLinkedInCandidates = async (
 
     if (!response.ok) throw new Error("API Failed");
     const data = await response.json();
-    return { 
-        rawResponse: JSON.stringify(data), 
-        rawResults: [], 
-        candidates: data.results || [] 
+
+    // Handle both array response [{ results: [...] }] and direct object { results: [...] }
+    const resultsData = Array.isArray(data) ? data[0] : data;
+    const rawResults = resultsData.results || [];
+
+    // Transform API response to match Candidate interface
+    const candidates = rawResults.map((item: any) => ({
+        name: `${item.candidate_First_Name || ''} ${item.candidate_Last_Name || ''}`.trim() || 'Unknown',
+        role: item.likely_seniority || 'Unknown',
+        company: 'External', // LinkedIn doesn't provide current company in this format
+        matchScore: item.score || 0,
+        email: '', // LinkedIn doesn't provide email
+        linkedinUrl: item.linkedin_url || '',
+        source: 'LinkedIn' as const,
+        fitLevel: item.fit_level || 'maybe',
+        strengths: item.strengths || '',
+        concerns: item.concerns || '',
+        summary: item.Description || item.recommended_next_step || '',
+        imageUrl: item.profile_image_url || ''
+    }));
+
+    return {
+        rawResponse: JSON.stringify(data),
+        rawResults: rawResults,
+        candidates: candidates
     };
 
   } catch (error) {
-    console.warn("Returning MOCK LINKEDIN RESULTS (API Failure)");
+    console.warn("Returning MOCK LINKEDIN RESULTS (API Failure)", error);
     return {
         rawResponse: JSON.stringify({ error: "API Failed, showing mock data" }),
         rawResults: [],

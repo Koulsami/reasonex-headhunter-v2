@@ -139,20 +139,38 @@ export const searchLinkedInCandidates = async (
     const rawResults = resultsData.results || [];
 
     // Transform API response to match Candidate interface
-    const candidates = rawResults.map((item: any) => ({
-        name: `${item.candidate_First_Name || ''} ${item.candidate_Last_Name || ''}`.trim() || 'Unknown',
-        role: item.likely_seniority || 'Unknown',
-        company: 'External', // LinkedIn doesn't provide current company in this format
-        matchScore: item.score || 0,
-        email: '', // LinkedIn doesn't provide email
-        linkedinUrl: item.linkedin_url || '',
-        source: 'LinkedIn' as const,
-        fitLevel: item.fit_level || 'maybe',
-        strengths: item.strengths || '',
-        concerns: item.concerns || '',
-        summary: item.Description || item.recommended_next_step || '',
-        imageUrl: item.profile_image_url || ''
-    }));
+    const candidates = rawResults.map((item: any) => {
+        const firstName = item.candidate_First_Name || '';
+        const lastName = item.candidate_Last_Name || '';
+        const fullName = `${firstName} ${lastName}`.trim() || 'Unknown';
+
+        // Score is 0-10, convert to 0-100 for display
+        const matchScore = item.score ? item.score * 10 : 0;
+
+        console.log('Transforming candidate:', {
+            firstName,
+            lastName,
+            fullName,
+            originalScore: item.score,
+            matchScore,
+            linkedinUrl: item.linkedin_url
+        });
+
+        return {
+            name: fullName,
+            role: item.likely_seniority || 'Unknown',
+            company: 'External', // LinkedIn doesn't provide current company in this format
+            matchScore: matchScore,
+            email: '', // LinkedIn doesn't provide email
+            linkedinUrl: item.linkedin_url || '',
+            source: 'LinkedIn' as const,
+            fitLevel: item.fit_level || 'maybe',
+            strengths: item.strengths || '',
+            concerns: item.concerns || '',
+            summary: item.Description || item.recommended_next_step || '',
+            imageUrl: item.profile_image_url || ''
+        };
+    });
 
     return {
         rawResponse: JSON.stringify(data),

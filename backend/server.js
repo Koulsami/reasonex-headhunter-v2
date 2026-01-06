@@ -4,6 +4,7 @@ const express = require('express');
 const { Pool } = require('pg');
 const cors = require('cors');
 const { OAuth2Client } = require('google-auth-library');
+const fetch = require('node-fetch');
 
 const app = express();
 const port = process.env.PORT || 3001;
@@ -283,7 +284,6 @@ app.post('/api/linkedin-search', verifyToken, async (req, res) => {
         console.log('Proxying LinkedIn search to:', linkedinApiUrl);
 
         // Forward request to N8N webhook
-        const fetch = require('node-fetch');
         const response = await fetch(linkedinApiUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },

@@ -26,6 +26,11 @@ const App: React.FC = () => {
 
   // --- INITIAL DATA FETCH ---
   useEffect(() => {
+    // Set dev token if not already set (for development/demo mode)
+    if (!localStorage.getItem('authToken')) {
+      localStorage.setItem('authToken', 'DEV_TOKEN_REASONEX');
+    }
+
     const loadData = async () => {
       try {
         const data = await api.fetchInitialData();

@@ -37,10 +37,15 @@ export const setApiToken = (token: string) => {
   authToken = token;
 };
 
-const getHeaders = () => ({
-  'Content-Type': 'application/json',
-  'Authorization': `Bearer ${authToken}`
-});
+const getHeaders = () => {
+  // Get token from localStorage with DEV_TOKEN fallback (same pattern as geminiService)
+  const token = localStorage.getItem('authToken') || 'DEV_TOKEN_REASONEX';
+
+  return {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${token}`
+  };
+};
 
 // --- MOCK DATA STORE ---
 // Used when the backend is offline or no user is logged in (Demo Mode).
@@ -108,7 +113,8 @@ export const api = {
    * 3. If Backend fails (offline), fall back to Mock Data.
    */
   fetchInitialData: async () => {
-    if (!authToken && window.location.hostname === 'localhost') {
+    const token = localStorage.getItem('authToken');
+    if (!token && window.location.hostname === 'localhost') {
         return getMockDataSync();
     }
 

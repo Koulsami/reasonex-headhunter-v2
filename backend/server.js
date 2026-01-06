@@ -276,10 +276,16 @@ app.post('/api/linkedin-search', verifyToken, async (req, res) => {
     try {
         const { job_context, country, num_candidates_analyze, num_candidates_output } = req.body;
 
-        // Get LinkedIn API URL from system config
-        const configResult = await pool.query("SELECT value FROM system_config WHERE key = 'linkedinApiUrl'");
-        const linkedinApiUrl = configResult.rows[0]?.value ||
-            'https://n8n-production-3f14.up.railway.app/webhook-test/275acb0f-4966-4205-83c8-5fc86b0e7fb1';
+        // Get LinkedIn API URL from system config (with fallback if table doesn't exist)
+        let linkedinApiUrl = 'https://n8n-production-3f14.up.railway.app/webhook-test/275acb0f-4966-4205-83c8-5fc86b0e7fb1';
+        try {
+            const configResult = await pool.query("SELECT value FROM system_config WHERE key = 'linkedinApiUrl'");
+            if (configResult.rows[0]?.value) {
+                linkedinApiUrl = configResult.rows[0].value;
+            }
+        } catch (configErr) {
+            console.warn('Config table not found, using default LinkedIn URL');
+        }
 
         console.log('Proxying LinkedIn search to:', linkedinApiUrl);
 
@@ -301,12 +307,22 @@ app.post('/api/linkedin-search', verifyToken, async (req, res) => {
         }
 
         const data = await response.json();
-        await logAudit(req.user.email, 'LINKEDIN_SEARCH', 'search', null, { country, candidates_output: num_candidates_output });
+
+        // Log audit (ignore if table doesn't exist)
+        try {
+            await logAudit(req.user.email, 'LINKEDIN_SEARCH', 'search', null, { country, candidates_output: num_candidates_output });
+        } catch (auditErr) {
+            console.warn('Audit log failed (table may not exist yet)');
+        }
 
         res.json(data);
     } catch(err) {
         console.error('LinkedIn search proxy error:', err);
-        res.status(500).json({ error: err.message });
+        console.error('Error details:', err.stack);
+        res.status(500).json({
+            error: err.message,
+            details: 'Check backend logs for more information'
+        });
     }
 });
 

@@ -65,10 +65,12 @@ const SearchTab: React.FC<SearchTabProps> = ({ existingClients, users, onAddCand
       console.log('Starting LinkedIn Search with:', { jobContext, country, numCandidatesAnalyze, numCandidatesOutput });
       
       const searchResponse = await searchLinkedInCandidates(jobContext, country, numCandidatesAnalyze, numCandidatesOutput);
-      
+
       console.log('Search response received', searchResponse);
+      console.log('First candidate:', searchResponse.candidates[0]);
       setRawResponse(searchResponse.rawResponse);
       setGeneratedCandidates(searchResponse.candidates);
+      console.log('Candidates set in state, first candidate:', searchResponse.candidates[0]);
       
       if (searchResponse.candidates.length === 0) {
         alert("Search completed but no candidates were returned. Try adjusting your parameters or checking the Raw API Response.");

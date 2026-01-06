@@ -198,10 +198,34 @@ export const searchInternalCandidates = async (jd: string): Promise<CandidateSea
 // --- MARKET INTELLIGENCE ---
 
 export const fetchJobAlerts = async (): Promise<NewsItem[]> => {
-    return [
-        { title: "Senior React Developer", source: "TechCorp", url: "#", snippet: "Remote • $140k+", date: "1h ago" },
-        { title: "Engineering Manager", source: "StartupInc", url: "#", snippet: "Hybrid • Equity", date: "3h ago" }
-    ];
+    try {
+        const apiUrl = INTEGRATION_CONFIG.jobAlertsApiUrl;
+        if (!apiUrl) {
+            console.warn("Job Alerts API URL not configured, returning mock data");
+            return [
+                { title: "Senior React Developer", source: "TechCorp", url: "#", snippet: "Remote • $140k+", date: "1h ago" },
+                { title: "Engineering Manager", source: "StartupInc", url: "#", snippet: "Hybrid • Equity", date: "3h ago" }
+            ];
+        }
+
+        const response = await fetch(apiUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({})
+        });
+
+        if (!response.ok) throw new Error("Job Alerts API Failed");
+
+        const data = await response.json();
+        return data.alerts || data.results || [];
+
+    } catch (error) {
+        console.warn("Returning MOCK JOB ALERTS (API Failure)", error);
+        return [
+            { title: "Senior React Developer", source: "TechCorp", url: "#", snippet: "Remote • $140k+", date: "1h ago" },
+            { title: "Engineering Manager", source: "StartupInc", url: "#", snippet: "Hybrid • Equity", date: "3h ago" }
+        ];
+    }
 };
 
 export const getClientNews = async (clientName: string): Promise<{ news: NewsItem[] }> => {

@@ -152,7 +152,7 @@ const App: React.FC = () => {
             </div>
             
             <nav className="flex space-x-1 bg-slate-100 p-1 rounded-lg">
-              {(['search', 'kanban', 'intelligence'] as Tab[]).map((tab) => (
+              {(['search', 'kanban', 'intelligence', 'admin'] as Tab[]).map((tab) => (
                 <button
                   key={tab}
                   onClick={() => setActiveTab(tab)}
@@ -193,6 +193,9 @@ const App: React.FC = () => {
         )}
         {activeTab === 'intelligence' && (
           <IntelligenceTab />
+        )}
+        {activeTab === 'admin' && (
+          <AdminPanel />
         )}
       </main>
     </div>

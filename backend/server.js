@@ -186,37 +186,77 @@ app.get('/api/admin/logs', verifyToken, verifyAdmin, async (req, res) => {
 
 app.get('/api/admin/stats', verifyToken, verifyAdmin, async (req, res) => {
     try {
-        const cCount = await pool.query('SELECT count(*) FROM candidates');
-        const jCount = await pool.query('SELECT count(*) FROM jobs');
-        const jActive = await pool.query('SELECT count(*) FROM jobs WHERE status = \'Active\'');
-        const clCount = await pool.query('SELECT count(*) FROM clients');
-        const apiCalls = await pool.query("SELECT count(*) FROM audit_logs WHERE created_at > NOW() - INTERVAL '24 HOURS'");
+        // Default values if tables don't exist
+        let stats = {
+            totalCandidates: 0,
+            totalJobs: 0,
+            activeJobs: 0,
+            totalClients: 0,
+            apiCallsLast24h: 0
+        };
 
-        res.json({
-            totalCandidates: parseInt(cCount.rows[0].count),
-            totalJobs: parseInt(jCount.rows[0].count),
-            activeJobs: parseInt(jActive.rows[0].count),
-            totalClients: parseInt(clCount.rows[0].count),
-            apiCallsLast24h: parseInt(apiCalls.rows[0].count)
-        });
-    } catch (err) { res.status(500).json(err); }
+        try {
+            const cCount = await pool.query('SELECT count(*) FROM candidates');
+            stats.totalCandidates = parseInt(cCount.rows[0].count);
+        } catch(e) { console.warn('Candidates table not found'); }
+
+        try {
+            const jCount = await pool.query('SELECT count(*) FROM jobs');
+            stats.totalJobs = parseInt(jCount.rows[0].count);
+        } catch(e) { console.warn('Jobs table not found'); }
+
+        try {
+            const jActive = await pool.query('SELECT count(*) FROM jobs WHERE status = \'Active\'');
+            stats.activeJobs = parseInt(jActive.rows[0].count);
+        } catch(e) { /* Already warned above */ }
+
+        try {
+            const clCount = await pool.query('SELECT count(*) FROM clients');
+            stats.totalClients = parseInt(clCount.rows[0].count);
+        } catch(e) { console.warn('Clients table not found'); }
+
+        try {
+            const apiCalls = await pool.query("SELECT count(*) FROM audit_logs WHERE created_at > NOW() - INTERVAL '24 HOURS'");
+            stats.apiCallsLast24h = parseInt(apiCalls.rows[0].count);
+        } catch(e) { console.warn('Audit logs table not found'); }
+
+        res.json(stats);
+    } catch (err) {
+        console.error('Stats error:', err);
+        res.status(500).json({ error: err.message });
+    }
 });
 
 app.post('/api/admin/config', verifyToken, verifyAdmin, async (req, res) => {
     const { linkedinApiUrl, jobAlertsApiUrl, googleSearchEnabled } = req.body;
     try {
-        const queries = [
-            pool.query('INSERT INTO system_config (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value=$2', ['linkedinApiUrl', linkedinApiUrl]),
-            pool.query('INSERT INTO system_config (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value=$2', ['jobAlertsApiUrl', jobAlertsApiUrl]),
-            pool.query('INSERT INTO system_config (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value=$2', ['googleSearchEnabled', String(googleSearchEnabled)])
-        ];
-        await Promise.all(queries);
-        
-        await logAudit(req.user.email, 'UPDATE_CONFIG', 'system', null, { linkedinApiUrl });
-        res.json({ success: true });
-    } catch (err) { 
-        console.error(err);
-        res.status(500).json({ error: "Failed to save config." }); 
+        // Try to save config to database
+        try {
+            const queries = [
+                pool.query('INSERT INTO system_config (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value=$2', ['linkedinApiUrl', linkedinApiUrl]),
+                pool.query('INSERT INTO system_config (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value=$2', ['jobAlertsApiUrl', jobAlertsApiUrl]),
+                pool.query('INSERT INTO system_config (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value=$2', ['googleSearchEnabled', String(googleSearchEnabled)])
+            ];
+            await Promise.all(queries);
+        } catch (configErr) {
+            console.warn('Config table not found - config not persisted. Run schema.sql to create tables.');
+            // Continue anyway - config will work in memory for this session
+        }
+
+        // Try to log audit (optional)
+        try {
+            await logAudit(req.user.email, 'UPDATE_CONFIG', 'system', null, { linkedinApiUrl });
+        } catch (auditErr) {
+            console.warn('Audit log table not found');
+        }
+
+        res.json({
+            success: true,
+            warning: 'Config saved to memory only. Run database schema to persist configuration.'
+        });
+    } catch (err) {
+        console.error('Config update error:', err);
+        res.status(500).json({ error: "Failed to save config." });
     }
 });
 

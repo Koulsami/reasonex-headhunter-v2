@@ -49,12 +49,22 @@ export interface Job {
 }
 
 /**
+ * Stage-specific note for a candidate
+ */
+export interface CandidateNote {
+  stage: Stage;
+  note: string;
+  timestamp: string;
+  author: string;
+}
+
+/**
  * A Candidate profile associated with a specific Job.
  */
 export interface Candidate {
   id: string;
   jobId: string;
-  assigneeId?: string; 
+  assigneeId?: string;
   name: string;
   role: string;
   company: string;
@@ -62,7 +72,7 @@ export interface Candidate {
   matchScore: number; // 0-100 score based on AI analysis
   email: string;
   addedAt: string; // ISO Date String
-  
+
   // AI/Enrichment Data
   linkedinUrl?: string;
   imageUrl?: string;
@@ -71,6 +81,9 @@ export interface Candidate {
   concerns?: string; // Pipe-delimited string of potential red flags
   summary?: string; // AI generated summary
   source?: 'LinkedIn' | 'Internal' | 'Google' | 'Manual';
+
+  // Notes history
+  notes?: CandidateNote[];
 }
 
 export interface NewsItem {

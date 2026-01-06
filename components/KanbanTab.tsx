@@ -11,24 +11,28 @@ interface KanbanTabProps {
   onAssignJob: (jobId: string, userId: string) => void;
   onUpdateJobStatus: (jobId: string, status: Job['status']) => void;
   onRemoveCandidate: (candidateId: string) => void;
+  onAddNote: (candidateId: string, note: string, stage: Stage) => void;
 }
 
 const STAGES: Stage[] = ['Identified', 'Analyzed', 'Contacted', 'Screening', 'Interview', 'Offer', 'Hired', 'Rejected'];
 
-const KanbanTab: React.FC<KanbanTabProps> = ({ 
-  clients, 
-  jobs, 
-  candidates, 
-  users, 
-  onMoveCandidate, 
+const KanbanTab: React.FC<KanbanTabProps> = ({
+  clients,
+  jobs,
+  candidates,
+  users,
+  onMoveCandidate,
   onAssignCandidate,
   onAssignJob,
   onUpdateJobStatus,
-  onRemoveCandidate
+  onRemoveCandidate,
+  onAddNote
 }) => {
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [showNotesDropdown, setShowNotesDropdown] = useState<string | null>(null);
+  const [newNote, setNewNote] = useState<string>('');
   
   // By default, we only show Active projects. User can toggle to see archived.
   const [filterActiveOnly, setFilterActiveOnly] = useState(true);
@@ -369,36 +373,106 @@ const KanbanTab: React.FC<KanbanTabProps> = ({
                                 </span>
                               </div>
 
-                              {/* Controls: Stage & Assignee */}
-                              <div className="pt-2 border-t border-slate-50 flex justify-between items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                                {/* Stage Selector */}
-                                <select 
-                                  className="flex-1 text-[10px] border border-slate-200 bg-slate-50 text-slate-600 focus:ring-0 cursor-pointer rounded hover:bg-slate-100 p-1"
-                                  value={candidate.stage}
-                                  onChange={(e) => onMoveCandidate(candidate.id, e.target.value as Stage)}
-                                >
-                                  {STAGES.map(s => (
-                                    <option key={s} value={s}>{s}</option>
-                                  ))}
-                                </select>
-
-                                {/* Assignee Selector */}
-                                <div className="relative" title={`Assigned to: ${candidateAssignee?.name || 'Unassigned'}`}>
-                                  <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] cursor-pointer ring-1 ring-white shadow-sm ${candidateAssignee?.color || 'bg-slate-200 text-slate-400'}`}>
-                                    {candidateAssignee?.avatar || '?'}
-                                  </div>
-                                  <select 
-                                    className="absolute inset-0 opacity-0 cursor-pointer"
-                                    value={candidate.assigneeId || ''}
-                                    onChange={(e) => onAssignCandidate(candidate.id, e.target.value)}
+                              {/* Controls: Stage, Assignee & Notes */}
+                              <div className="pt-2 border-t border-slate-50 space-y-2" onClick={(e) => e.stopPropagation()}>
+                                <div className="flex justify-between items-center gap-2">
+                                  {/* Stage Selector */}
+                                  <select
+                                    className="flex-1 text-[10px] border border-slate-200 bg-slate-50 text-slate-600 focus:ring-0 cursor-pointer rounded hover:bg-slate-100 p-1"
+                                    value={candidate.stage}
+                                    onChange={(e) => onMoveCandidate(candidate.id, e.target.value as Stage)}
                                   >
-                                    <option value="">Unassigned</option>
-                                    {users.map(u => (
-                                      <option key={u.id} value={u.id}>
-                                        {u.name} {u.role === 'AI' ? '✨' : ''}
-                                      </option>
+                                    {STAGES.map(s => (
+                                      <option key={s} value={s}>{s}</option>
                                     ))}
                                   </select>
+
+                                  {/* Assignee Selector */}
+                                  <div className="relative" title={`Assigned to: ${candidateAssignee?.name || 'Unassigned'}`}>
+                                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] cursor-pointer ring-1 ring-white shadow-sm ${candidateAssignee?.color || 'bg-slate-200 text-slate-400'}`}>
+                                      {candidateAssignee?.avatar || '?'}
+                                    </div>
+                                    <select
+                                      className="absolute inset-0 opacity-0 cursor-pointer"
+                                      value={candidate.assigneeId || ''}
+                                      onChange={(e) => onAssignCandidate(candidate.id, e.target.value)}
+                                    >
+                                      <option value="">Unassigned</option>
+                                      {users.map(u => (
+                                        <option key={u.id} value={u.id}>
+                                          {u.name} {u.role === 'AI' ? '✨' : ''}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                </div>
+
+                                {/* Notes Section */}
+                                <div className="relative">
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setShowNotesDropdown(showNotesDropdown === candidate.id ? null : candidate.id);
+                                      setNewNote('');
+                                    }}
+                                    className="w-full text-[10px] border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 cursor-pointer rounded p-1 flex items-center justify-between"
+                                  >
+                                    <span className="flex items-center gap-1">
+                                      <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                                      Notes {candidate.notes && candidate.notes.length > 0 ? `(${candidate.notes.length})` : ''}
+                                    </span>
+                                    <svg className={`transform transition-transform ${showNotesDropdown === candidate.id ? 'rotate-180' : ''}`} xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                                  </button>
+
+                                  {/* Notes Dropdown */}
+                                  {showNotesDropdown === candidate.id && (
+                                    <div className="absolute bottom-full mb-1 left-0 w-full bg-white border border-slate-200 rounded-lg shadow-lg z-50 max-h-48 overflow-y-auto">
+                                      {/* Add Note Form */}
+                                      <div className="p-2 border-b border-slate-100 bg-slate-50">
+                                        <textarea
+                                          className="w-full text-xs p-2 border border-slate-200 rounded focus:ring-1 focus:ring-blue-200 focus:border-blue-300 resize-none"
+                                          placeholder={`Add note for ${candidate.stage} stage...`}
+                                          rows={2}
+                                          value={newNote}
+                                          onChange={(e) => setNewNote(e.target.value)}
+                                          onClick={(e) => e.stopPropagation()}
+                                        />
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            if (newNote.trim()) {
+                                              onAddNote(candidate.id, newNote, candidate.stage);
+                                              setNewNote('');
+                                            }
+                                          }}
+                                          disabled={!newNote.trim()}
+                                          className="mt-1 w-full text-[10px] bg-blue-600 text-white py-1 rounded hover:bg-blue-700 disabled:bg-slate-300 disabled:cursor-not-allowed"
+                                        >
+                                          Add Note
+                                        </button>
+                                      </div>
+
+                                      {/* Notes History */}
+                                      <div className="p-2 space-y-2">
+                                        {candidate.notes && candidate.notes.length > 0 ? (
+                                          candidate.notes.slice().reverse().map((note, idx) => (
+                                            <div key={idx} className="text-xs bg-slate-50 p-2 rounded border border-slate-100">
+                                              <div className="flex justify-between items-start mb-1">
+                                                <span className="font-semibold text-slate-700 text-[10px]">{note.author}</span>
+                                                <span className="text-[9px] text-slate-400">{new Date(note.timestamp).toLocaleDateString()}</span>
+                                              </div>
+                                              <div className="text-[10px] px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded inline-block mb-1">
+                                                {note.stage}
+                                              </div>
+                                              <p className="text-slate-600 text-[11px]">{note.note}</p>
+                                            </div>
+                                          ))
+                                        ) : (
+                                          <p className="text-[10px] text-slate-400 text-center py-2">No notes yet</p>
+                                        )}
+                                      </div>
+                                    </div>
+                                  )}
                                 </div>
                               </div>
                             </div>

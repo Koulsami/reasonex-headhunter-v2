@@ -52,7 +52,11 @@ const getHeaders = () => {
 const MOCK_DB = {
     users: [
         { id: 'u1', name: 'Sam Koul', role: 'Manager' as const, avatar: 'SK', color: 'bg-blue-100 text-blue-700' },
-        { id: 'u2', name: 'AI Recruiter', role: 'AI' as const, avatar: 'AI', color: 'bg-purple-100 text-purple-700' }
+        { id: 'u2', name: 'AI Recruiter', role: 'AI' as const, avatar: 'AI', color: 'bg-purple-100 text-purple-700' },
+        { id: 'u3', name: 'Priya Sharma', role: 'Recruiter' as const, avatar: 'PS', color: 'bg-green-100 text-green-700' },
+        { id: 'u4', name: 'Raj Patel', role: 'Recruiter' as const, avatar: 'RP', color: 'bg-orange-100 text-orange-700' },
+        { id: 'u5', name: 'Sarah Lee', role: 'Recruiter' as const, avatar: 'SL', color: 'bg-pink-100 text-pink-700' },
+        { id: 'u6', name: 'James Chen', role: 'Recruiter' as const, avatar: 'JC', color: 'bg-teal-100 text-teal-700' }
     ],
     clients: [
         { id: 'c1', name: 'Acme Corp', industry: 'Tech', website: 'acme.com' },

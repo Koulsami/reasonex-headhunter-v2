@@ -160,6 +160,26 @@ const App: React.FC = () => {
     }
   };
 
+  const handleAddNote = (candidateId: string, note: string, stage: Stage) => {
+    setCandidates(prev => prev.map(c => {
+      if (c.id === candidateId) {
+        const newNote = {
+          stage: stage,
+          note: note,
+          timestamp: new Date().toISOString(),
+          author: currentUser?.name || 'Unknown'
+        };
+        const updated = {
+          ...c,
+          notes: [...(c.notes || []), newNote]
+        };
+        api.upsertCandidate(updated); // Sync to DB
+        return updated;
+      }
+      return c;
+    }));
+  };
+
   // Admin Panel Actions
   const handleAddEmail = async (email: string) => {
     await api.addAllowedUser(email);
@@ -193,7 +213,7 @@ const App: React.FC = () => {
                 alt="Tead Logo"
                 className="h-10 w-auto"
               />
-              <span className="text-xl font-bold text-slate-800 tracking-tight hidden md:inline">Tead <span className="text-purple-700">Headhunter</span></span>
+              <span className="text-xl font-bold text-slate-800 tracking-tight hidden md:inline"><span className="text-purple-700">Headhunter</span></span>
             </div>
             
             <nav className="flex space-x-1 bg-slate-100 p-1 rounded-lg">
@@ -224,16 +244,17 @@ const App: React.FC = () => {
           />
         )}
         {activeTab === 'kanban' && (
-          <KanbanTab 
-            clients={clients} 
-            jobs={jobs} 
-            candidates={candidates} 
+          <KanbanTab
+            clients={clients}
+            jobs={jobs}
+            candidates={candidates}
             users={users}
-            onMoveCandidate={handleMoveCandidate} 
+            onMoveCandidate={handleMoveCandidate}
             onAssignCandidate={handleAssignCandidate}
             onAssignJob={handleAssignJob}
             onUpdateJobStatus={handleUpdateJobStatus}
             onRemoveCandidate={handleRemoveCandidate}
+            onAddNote={handleAddNote}
           />
         )}
         {activeTab === 'intelligence' && (

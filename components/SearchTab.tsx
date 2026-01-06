@@ -14,6 +14,7 @@ const SearchTab: React.FC<SearchTabProps> = ({ existingClients, users, onAddCand
   const [clientName, setClientName] = useState('Acme Corp');
   const [jobTitle, setJobTitle] = useState('Senior React Developer');
   const [country, setCountry] = useState('United States');
+  const [city, setCity] = useState('');
   const [assigneeId, setAssigneeId] = useState(users[0]?.id || '');
   
   // New state for sliders
@@ -212,10 +213,10 @@ const SearchTab: React.FC<SearchTabProps> = ({ existingClients, users, onAddCand
           Head Hunting
         </h2>
         
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-4">
           <div>
             <label className="block text-sm font-medium text-slate-600 mb-2">Client Name</label>
-            <input 
+            <input
               list="clients-list"
               type="text"
               className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent text-sm"
@@ -229,7 +230,7 @@ const SearchTab: React.FC<SearchTabProps> = ({ existingClients, users, onAddCand
           </div>
           <div>
             <label className="block text-sm font-medium text-slate-600 mb-2">Job Title (Project Name)</label>
-            <input 
+            <input
               type="text"
               className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent text-sm"
               placeholder="e.g. Senior Backend Engineer"
@@ -239,13 +240,35 @@ const SearchTab: React.FC<SearchTabProps> = ({ existingClients, users, onAddCand
           </div>
           <div>
             <label className="block text-sm font-medium text-slate-600 mb-2">Target Country</label>
-            <input 
+            <input
               type="text"
               className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent text-sm"
               placeholder="e.g. United States"
               value={country}
               onChange={(e) => setCountry(e.target.value)}
             />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-600 mb-2">City</label>
+            <select
+              className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent text-sm"
+              value={city}
+              onChange={(e) => setCity(e.target.value)}
+            >
+              <option value="">Any City</option>
+              <optgroup label="India">
+                <option value="Mumbai">Mumbai</option>
+                <option value="Delhi">Delhi</option>
+                <option value="Bangalore">Bangalore</option>
+                <option value="Hyderabad">Hyderabad</option>
+                <option value="Chennai">Chennai</option>
+                <option value="Pune">Pune</option>
+                <option value="Kolkata">Kolkata</option>
+              </optgroup>
+              <optgroup label="Singapore">
+                <option value="Singapore">Singapore</option>
+              </optgroup>
+            </select>
           </div>
           <div>
             <label className="block text-sm font-medium text-slate-600 mb-2">Assign Recruiter</label>

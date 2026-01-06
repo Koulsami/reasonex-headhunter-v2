@@ -163,10 +163,12 @@ const App: React.FC = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center gap-3">
-              <div className="bg-blue-600 h-9 w-9 rounded-lg shadow-sm flex items-center justify-center">
-                 <span className="text-white font-bold text-lg leading-none tracking-tight">RX</span>
-              </div>
-              <span className="text-xl font-bold text-slate-800 tracking-tight hidden md:inline">Reasonex <span className="text-blue-600">Cloud</span></span>
+              <img
+                src="/tead-logo.png"
+                alt="Tead Logo"
+                className="h-10 w-auto"
+              />
+              <span className="text-xl font-bold text-slate-800 tracking-tight hidden md:inline">Tead <span className="text-purple-700">Headhunter</span></span>
             </div>
             
             <nav className="flex space-x-1 bg-slate-100 p-1 rounded-lg">

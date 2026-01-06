@@ -277,8 +277,8 @@ app.post('/api/linkedin-search', verifyToken, async (req, res) => {
         const { job_context, country, num_candidates_analyze, num_candidates_output } = req.body;
 
         // Get LinkedIn API URL from system config
-        const configResult = await pool.query('SELECT linkedin_api_url FROM system_config LIMIT 1');
-        const linkedinApiUrl = configResult.rows[0]?.linkedin_api_url ||
+        const configResult = await pool.query("SELECT value FROM system_config WHERE key = 'linkedinApiUrl'");
+        const linkedinApiUrl = configResult.rows[0]?.value ||
             'https://n8n-production-3f14.up.railway.app/webhook-test/275acb0f-4966-4205-83c8-5fc86b0e7fb1';
 
         console.log('Proxying LinkedIn search to:', linkedinApiUrl);

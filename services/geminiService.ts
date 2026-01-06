@@ -118,16 +118,24 @@ export const searchLinkedInCandidates = async (
   numCandidatesOutput: number
 ): Promise<CandidateSearchResponse> => {
   try {
-    const apiUrl = INTEGRATION_CONFIG.linkedinApiUrl;
+    // Use backend proxy to avoid CORS issues
+    const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001';
+    const apiUrl = `${backendUrl}/api/linkedin-search`;
+
+    // Get auth token from localStorage (set during login)
+    const token = localStorage.getItem('authToken') || 'DEV_TOKEN_REASONEX';
+
     const response = await fetch(apiUrl, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
       body: JSON.stringify({
         job_context: jobContext,
         country: country,
         num_candidates_analyze: numCandidatesAnalyze,
-        num_candidates_output: numCandidatesOutput,
-        search_mode: "wide"
+        num_candidates_output: numCandidatesOutput
       })
     });
 

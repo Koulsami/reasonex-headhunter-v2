@@ -269,6 +269,47 @@ app.delete('/api/candidates/:id', verifyToken, async (req, res) => {
     } catch(err) { res.status(500).json(err); }
 });
 
+// --- LINKEDIN PROXY ENDPOINT ---
+// Proxies requests to N8N webhook to avoid CORS issues
+app.post('/api/linkedin-search', verifyToken, async (req, res) => {
+    try {
+        const { job_context, country, num_candidates_analyze, num_candidates_output } = req.body;
+
+        // Get LinkedIn API URL from system config
+        const configResult = await pool.query('SELECT linkedin_api_url FROM system_config LIMIT 1');
+        const linkedinApiUrl = configResult.rows[0]?.linkedin_api_url ||
+            'https://n8n-production-3f14.up.railway.app/webhook-test/275acb0f-4966-4205-83c8-5fc86b0e7fb1';
+
+        console.log('Proxying LinkedIn search to:', linkedinApiUrl);
+
+        // Forward request to N8N webhook
+        const fetch = require('node-fetch');
+        const response = await fetch(linkedinApiUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                job_context,
+                country,
+                num_candidates_analyze,
+                num_candidates_output,
+                search_mode: "wide"
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error(`N8N API returned ${response.status}`);
+        }
+
+        const data = await response.json();
+        await logAudit(req.user.email, 'LINKEDIN_SEARCH', 'search', null, { country, candidates_output: num_candidates_output });
+
+        res.json(data);
+    } catch(err) {
+        console.error('LinkedIn search proxy error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 app.listen(port, () => {
   console.log(`Backend running on port ${port}`);
 });

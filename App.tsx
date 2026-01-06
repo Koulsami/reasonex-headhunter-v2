@@ -19,6 +19,8 @@ const App: React.FC = () => {
   const [jobs, setJobs] = useState<Job[]>(initialData.jobs);
   const [candidates, setCandidates] = useState<Candidate[]>(initialData.candidates);
   const [users, setUsers] = useState<User[]>(initialData.users);
+  const [allowedEmails, setAllowedEmails] = useState<string[]>(initialData.allowedEmails || []);
+  const [systemConfig, setSystemConfig] = useState<SystemConfig>(initialData.config || { linkedinApiUrl: '', jobAlertsApiUrl: '', googleSearchEnabled: true });
   const currentUser = initialData.users[0];
 
   // --- INITIAL DATA FETCH ---
@@ -138,6 +140,22 @@ const App: React.FC = () => {
     }
   };
 
+  // Admin Panel Actions
+  const handleAddEmail = async (email: string) => {
+    await api.addAllowedUser(email);
+    setAllowedEmails(prev => [...prev, email]);
+  };
+
+  const handleRemoveEmail = async (email: string) => {
+    await api.removeAllowedUser(email);
+    setAllowedEmails(prev => prev.filter(e => e !== email));
+  };
+
+  const handleUpdateConfig = async (config: SystemConfig) => {
+    await api.updateSystemConfig(config);
+    setSystemConfig(config);
+  };
+
   // --- RENDER ---
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col relative">
@@ -195,7 +213,13 @@ const App: React.FC = () => {
           <IntelligenceTab />
         )}
         {activeTab === 'admin' && (
-          <AdminPanel />
+          <AdminPanel
+            allowedEmails={allowedEmails}
+            onAddEmail={handleAddEmail}
+            onRemoveEmail={handleRemoveEmail}
+            onUpdateConfig={handleUpdateConfig}
+            currentConfig={systemConfig}
+          />
         )}
       </main>
     </div>

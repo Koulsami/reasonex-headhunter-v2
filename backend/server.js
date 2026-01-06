@@ -313,6 +313,9 @@ app.delete('/api/candidates/:id', verifyToken, async (req, res) => {
 // --- LINKEDIN PROXY ENDPOINT ---
 // Proxies requests to N8N webhook to avoid CORS issues
 app.post('/api/linkedin-search', verifyToken, async (req, res) => {
+    console.log('=== LINKEDIN SEARCH REQUEST START ===');
+    console.log('Request body:', JSON.stringify(req.body, null, 2));
+
     try {
         const { job_context, country, num_candidates_analyze, num_candidates_output } = req.body;
 
@@ -322,14 +325,24 @@ app.post('/api/linkedin-search', verifyToken, async (req, res) => {
             const configResult = await pool.query("SELECT value FROM system_config WHERE key = 'linkedinApiUrl'");
             if (configResult.rows[0]?.value) {
                 linkedinApiUrl = configResult.rows[0].value;
+                console.log('Using config URL from database:', linkedinApiUrl);
             }
         } catch (configErr) {
             console.warn('Config table not found, using default LinkedIn URL');
         }
 
-        console.log('Proxying LinkedIn search to:', linkedinApiUrl);
+        console.log('Final LinkedIn API URL:', linkedinApiUrl);
+        console.log('About to call node-fetch...');
 
         // Forward request to N8N webhook
+        console.log('Calling fetch with payload:', {
+            job_context: job_context?.substring(0, 100) + '...',
+            country,
+            num_candidates_analyze,
+            num_candidates_output,
+            search_mode: "wide"
+        });
+
         const response = await fetch(linkedinApiUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -342,11 +355,17 @@ app.post('/api/linkedin-search', verifyToken, async (req, res) => {
             })
         });
 
+        console.log('N8N Response status:', response.status);
+        console.log('N8N Response ok:', response.ok);
+
         if (!response.ok) {
-            throw new Error(`N8N API returned ${response.status}`);
+            const errorText = await response.text();
+            console.error('N8N Error response:', errorText);
+            throw new Error(`N8N API returned ${response.status}: ${errorText}`);
         }
 
         const data = await response.json();
+        console.log('N8N Response data received, candidate count:', data?.results?.length || data?.[0]?.results?.length || 'unknown');
 
         // Log audit (ignore if table doesn't exist)
         try {
@@ -355,13 +374,17 @@ app.post('/api/linkedin-search', verifyToken, async (req, res) => {
             console.warn('Audit log failed (table may not exist yet)');
         }
 
+        console.log('=== LINKEDIN SEARCH REQUEST SUCCESS ===');
         res.json(data);
     } catch(err) {
-        console.error('LinkedIn search proxy error:', err);
-        console.error('Error details:', err.stack);
+        console.error('=== LINKEDIN SEARCH REQUEST FAILED ===');
+        console.error('Error type:', err.constructor.name);
+        console.error('Error message:', err.message);
+        console.error('Error stack:', err.stack);
         res.status(500).json({
             error: err.message,
-            details: 'Check backend logs for more information'
+            errorType: err.constructor.name,
+            details: 'Check Railway backend logs for full error trace'
         });
     }
 });

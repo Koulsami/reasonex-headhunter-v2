@@ -125,6 +125,8 @@ export const searchLinkedInCandidates = async (
     // Get auth token from localStorage (set during login)
     const token = localStorage.getItem('authToken') || 'DEV_TOKEN_REASONEX';
 
+    console.log('[Frontend] Calling backend LinkedIn search API:', apiUrl);
+
     const response = await fetch(apiUrl, {
       method: 'POST',
       headers: {
@@ -139,8 +141,16 @@ export const searchLinkedInCandidates = async (
       })
     });
 
-    if (!response.ok) throw new Error("API Failed");
+    console.log('[Frontend] Backend response status:', response.status);
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+      console.error('[Frontend] Backend error response:', errorData);
+      throw new Error(`API Failed: ${errorData.error || response.statusText} (${errorData.errorType || 'Unknown'})`);
+    }
+
     const data = await response.json();
+    console.log('[Frontend] Backend response received successfully');
 
     // Handle both array response [{ results: [...] }] and direct object { results: [...] }
     const resultsData = Array.isArray(data) ? data[0] : data;

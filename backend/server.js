@@ -292,7 +292,7 @@ app.post('/api/candidates', verifyToken, async (req, res) => {
 
     try {
         await pool.query(
-            `INSERT INTO candidates (id, job_id, assignee_id, name, current_role, current_company, stage, match_score, email, linkedin_url, source, added_at, ai_analysis) 
+            `INSERT INTO candidates (id, job_id, assignee_id, name, "current_role", "current_company", stage, match_score, email, linkedin_url, source, added_at, ai_analysis)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
              ON CONFLICT (id) DO UPDATE SET stage=$7, assignee_id=$3, match_score=$8`,
             [id, jobId, assigneeId, name, role, company, stage, matchScore, email, linkedinUrl, source, addedAt, aiAnalysis]

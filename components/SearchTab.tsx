@@ -444,12 +444,12 @@ const SearchTab: React.FC<SearchTabProps> = ({ existingClients, users, onAddCand
            )}
 
            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex flex-col">
-             <div className="flex justify-between items-center mb-6">
+             <div className="flex justify-between items-center mb-4">
                <h3 className="text-lg font-semibold text-slate-800 flex items-center gap-2">
                  Review Candidates
                  <span className="text-xs px-2 py-1 bg-green-50 text-green-700 rounded-full">{generatedCandidates.length} Found</span>
                </h3>
-               
+
                <div className="group relative">
                 <button 
                     onClick={handleConfirmAdd}
@@ -468,7 +468,22 @@ const SearchTab: React.FC<SearchTabProps> = ({ existingClients, users, onAddCand
                 )}
                </div>
              </div>
-             
+
+             {/* Assignee Info Banner */}
+             {generatedCandidates.length > 0 && (
+               <div className="mb-4 bg-blue-50 border border-blue-200 rounded-lg p-3 flex items-center gap-3">
+                 <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${users.find(u => u.id === assigneeId)?.color || 'bg-slate-200'}`}>
+                   {users.find(u => u.id === assigneeId)?.avatar || '?'}
+                 </div>
+                 <div className="flex-1">
+                   <p className="text-sm text-slate-700">
+                     <span className="font-semibold">{users.find(u => u.id === assigneeId)?.name}</span> will be assigned to all {generatedCandidates.length} candidate{generatedCandidates.length > 1 ? 's' : ''}.
+                   </p>
+                   <p className="text-xs text-slate-500">You can reassign candidates to other team members from the Kanban board.</p>
+                 </div>
+               </div>
+             )}
+
              {generatedCandidates.length === 0 ? (
                  <div className="text-center py-12 text-slate-400 bg-slate-50 rounded-lg border border-dashed border-slate-200">
                     <svg className="w-12 h-12 mx-auto mb-3 opacity-50" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 21h7a2 2 0 0 02-2V9.414a1 1 0 0 0-.293-.707l-5.414-5.414A1 1 0 0 0 12.586 3H7a2 2 0 0 0-2 2v11m0 5l4.879-4.879m0 0a3 3 0 1 04.243-4.242 3 3 0 0 0-4.243 4.242z" /></svg>

@@ -102,9 +102,15 @@ const App: React.FC = () => {
     } as Candidate));
 
     setCandidates(prev => [...prev, ...formattedCandidates]);
-    
+
     // Save all candidates to backend
-    formattedCandidates.forEach(c => api.upsertCandidate(c));
+    try {
+      await Promise.all(formattedCandidates.map(c => api.upsertCandidate(c)));
+      console.log(`✓ Saved ${formattedCandidates.length} candidates to database`);
+    } catch (error) {
+      console.error('Failed to save candidates:', error);
+      alert('Warning: Some candidates may not have been saved to the database');
+    }
 
     setActiveTab('kanban');
   };

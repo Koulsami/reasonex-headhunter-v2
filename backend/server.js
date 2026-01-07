@@ -18,7 +18,7 @@ const pool = new Pool({
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 const ADMIN_EMAIL = 'koulsam08@gmail.com'; // Hardcoded fallback admin
 
-// Enable CORS for all routes - Critical for cross-domain usage (Netlify -> Railway)
+// Enable CORS for all routes - Critical for cross-domain usage (Frontend -> Backend on Railway)
 app.use(cors());
 app.use(express.json());
 

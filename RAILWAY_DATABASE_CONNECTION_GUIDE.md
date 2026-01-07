@@ -15,7 +15,7 @@ This means the backend doesn't have the `DATABASE_URL` environment variable conf
 1. Go to [Railway Dashboard](https://railway.app/dashboard)
 2. Click on your project
 3. You should see **3 services**:
-   - Frontend (Netlify or Railway)
+   - Frontend (Railway)
    - Backend (Node.js)
    - PostgreSQL (Database)
 

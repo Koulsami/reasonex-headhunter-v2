@@ -163,10 +163,22 @@ const App: React.FC = () => {
   const handleAddNote = (candidateId: string, note: string, stage: Stage) => {
     setCandidates(prev => prev.map(c => {
       if (c.id === candidateId) {
+        // Format date as DDMmmYYYY (e.g., 05Mar2025)
+        const now = new Date();
+        const day = String(now.getDate()).padStart(2, '0');
+        const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        const month = monthNames[now.getMonth()];
+        const year = now.getFullYear();
+        const formattedDate = `${day}${month}${year}`;
+
+        // Get user avatar/ID for prefix
+        const userAvatar = currentUser?.avatar || 'UK';
+        const notePrefix = `${userAvatar}-${formattedDate}:`;
+
         const newNote = {
           stage: stage,
-          note: note,
-          timestamp: new Date().toISOString(),
+          note: `${notePrefix} ${note}`,
+          timestamp: now.toISOString(),
           author: currentUser?.name || 'Unknown'
         };
         const updated = {

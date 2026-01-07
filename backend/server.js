@@ -389,6 +389,196 @@ app.post('/api/linkedin-search', verifyToken, async (req, res) => {
     }
 });
 
+// --- JOB ALERTS PROXY ENDPOINT ---
+// Proxies requests to N8N Job Alerts webhook to avoid CORS issues
+app.post('/api/job-alerts', verifyToken, async (req, res) => {
+    console.log('=== JOB ALERTS REQUEST START ===');
+
+    try {
+        // Get Job Alerts API URL from system config
+        let jobAlertsApiUrl = 'https://n8n-production-3f14.up.railway.app/webhook/bc4a44fa-2a16-4108-acb1-34c2353e9476';
+        try {
+            const configResult = await pool.query("SELECT value FROM system_config WHERE key = 'jobAlertsApiUrl'");
+            if (configResult.rows[0]?.value) {
+                jobAlertsApiUrl = configResult.rows[0].value;
+                console.log('Using Job Alerts URL from database:', jobAlertsApiUrl);
+            }
+        } catch (configErr) {
+            console.warn('Config table not found, using default Job Alerts URL');
+        }
+
+        console.log('Calling Job Alerts API:', jobAlertsApiUrl);
+
+        const response = await fetch(jobAlertsApiUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(req.body)
+        });
+
+        console.log('Job Alerts API Response status:', response.status);
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error('Job Alerts API Error:', errorText);
+            throw new Error(`Job Alerts API returned ${response.status}: ${errorText}`);
+        }
+
+        const data = await response.json();
+        console.log('Job Alerts data received:', data?.alerts?.length || data?.results?.length || 'unknown count');
+
+        // Log audit
+        try {
+            await logAudit(req.user.email, 'JOB_ALERTS_FETCH', 'intelligence', null, {});
+        } catch (auditErr) {
+            console.warn('Audit log failed');
+        }
+
+        console.log('=== JOB ALERTS REQUEST SUCCESS ===');
+        res.json(data);
+    } catch(err) {
+        console.error('=== JOB ALERTS REQUEST FAILED ===');
+        console.error('Error:', err.message);
+        res.status(500).json({
+            error: err.message,
+            details: 'Job Alerts API failed'
+        });
+    }
+});
+
+// --- RSS FEED PROXY ENDPOINT ---
+// Fetches and parses RSS feeds server-side to avoid CORS issues
+app.post('/api/rss-feed', verifyToken, async (req, res) => {
+    console.log('=== RSS FEED REQUEST START ===');
+
+    try {
+        const { url } = req.body;
+
+        if (!url) {
+            return res.status(400).json({ error: 'RSS feed URL is required' });
+        }
+
+        console.log('Fetching RSS feed:', url);
+
+        const response = await fetch(url, {
+            headers: {
+                'User-Agent': 'Reasonex-Headhunter/1.0',
+                'Accept': 'application/rss+xml, application/xml, text/xml'
+            }
+        });
+
+        if (!response.ok) {
+            throw new Error(`RSS feed returned ${response.status}`);
+        }
+
+        const xmlText = await response.text();
+
+        // Return raw XML for frontend parsing
+        // Frontend can use DOMParser or xml2js to parse
+        res.set('Content-Type', 'application/xml');
+        res.send(xmlText);
+
+        console.log('=== RSS FEED REQUEST SUCCESS ===');
+    } catch(err) {
+        console.error('=== RSS FEED REQUEST FAILED ===');
+        console.error('Error:', err.message);
+        res.status(500).json({
+            error: err.message,
+            details: 'RSS feed fetch failed'
+        });
+    }
+});
+
+// --- BLOG POSTS PROXY ENDPOINT ---
+// Fetches blog posts or news articles server-side to avoid CORS issues
+app.post('/api/blog-posts', verifyToken, async (req, res) => {
+    console.log('=== BLOG POSTS REQUEST START ===');
+
+    try {
+        const { url } = req.body;
+
+        if (!url) {
+            return res.status(400).json({ error: 'Blog URL is required' });
+        }
+
+        console.log('Fetching blog/news from:', url);
+
+        const response = await fetch(url, {
+            headers: {
+                'User-Agent': 'Reasonex-Headhunter/1.0',
+                'Accept': 'application/json, text/html'
+            }
+        });
+
+        if (!response.ok) {
+            throw new Error(`Blog API returned ${response.status}`);
+        }
+
+        const contentType = response.headers.get('content-type');
+
+        if (contentType?.includes('application/json')) {
+            const data = await response.json();
+            res.json(data);
+        } else {
+            const html = await response.text();
+            res.send(html);
+        }
+
+        console.log('=== BLOG POSTS REQUEST SUCCESS ===');
+    } catch(err) {
+        console.error('=== BLOG POSTS REQUEST FAILED ===');
+        console.error('Error:', err.message);
+        res.status(500).json({
+            error: err.message,
+            details: 'Blog fetch failed'
+        });
+    }
+});
+
+// --- NEWS API PROXY ENDPOINT ---
+// Fetches news articles for client companies server-side to avoid CORS issues
+app.post('/api/news', verifyToken, async (req, res) => {
+    console.log('=== NEWS REQUEST START ===');
+
+    try {
+        const { query, clientName } = req.body;
+
+        if (!query && !clientName) {
+            return res.status(400).json({ error: 'Query or clientName is required' });
+        }
+
+        const searchQuery = query || clientName;
+        console.log('Fetching news for:', searchQuery);
+
+        // Using Google News RSS (no API key required)
+        const newsUrl = `https://news.google.com/rss/search?q=${encodeURIComponent(searchQuery)}&hl=en-US&gl=US&ceid=US:en`;
+
+        const response = await fetch(newsUrl, {
+            headers: {
+                'User-Agent': 'Reasonex-Headhunter/1.0'
+            }
+        });
+
+        if (!response.ok) {
+            throw new Error(`News API returned ${response.status}`);
+        }
+
+        const xmlText = await response.text();
+
+        // Return raw XML for frontend parsing
+        res.set('Content-Type', 'application/xml');
+        res.send(xmlText);
+
+        console.log('=== NEWS REQUEST SUCCESS ===');
+    } catch(err) {
+        console.error('=== NEWS REQUEST FAILED ===');
+        console.error('Error:', err.message);
+        res.status(500).json({
+            error: err.message,
+            details: 'News fetch failed'
+        });
+    }
+});
+
 app.listen(port, () => {
   console.log(`Backend running on port ${port}`);
 });

@@ -290,21 +290,35 @@ export const fetchJobAlerts = async (): Promise<NewsItem[]> => {
     };
 
     try {
-        const apiUrl = INTEGRATION_CONFIG.jobAlertsApiUrl;
-        if (!apiUrl) {
-            console.warn("Job Alerts API URL not configured, returning mock data");
-            return generateMockAlerts();
-        }
+        // Use backend proxy to avoid CORS issues
+        const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001';
+        const apiUrl = `${backendUrl}/api/job-alerts`;
+
+        // Get auth token from localStorage
+        const token = localStorage.getItem('authToken') || 'DEV_TOKEN_REASONEX';
+
+        console.log('[Frontend] Calling backend Job Alerts API:', apiUrl);
 
         const response = await fetch(apiUrl, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
             body: JSON.stringify({})
         });
 
-        if (!response.ok) throw new Error("Job Alerts API Failed");
+        console.log('[Frontend] Job Alerts response status:', response.status);
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+            console.error('[Frontend] Job Alerts error:', errorData);
+            throw new Error(`Job Alerts API Failed: ${errorData.error || response.statusText}`);
+        }
 
         const data = await response.json();
+        console.log('[Frontend] Job Alerts data received successfully');
+
         return data.alerts || data.results || [];
 
     } catch (error) {
@@ -314,9 +328,7 @@ export const fetchJobAlerts = async (): Promise<NewsItem[]> => {
 };
 
 export const getClientNews = async (clientName: string): Promise<{ news: NewsItem[] }> => {
-    // This could be implemented with a news API webhook if configured
-    // For now, returns mock data for demonstration
-    return {
+    const generateMockNews = () => ({
         news: [
             {
                 title: `${clientName} announces Q4 results`,
@@ -333,13 +345,57 @@ export const getClientNews = async (clientName: string): Promise<{ news: NewsIte
                 date: "1 week ago"
             }
         ]
-    };
+    });
+
+    try {
+        // Use backend proxy to fetch Google News RSS
+        const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001';
+        const apiUrl = `${backendUrl}/api/news`;
+        const token = localStorage.getItem('authToken') || 'DEV_TOKEN_REASONEX';
+
+        console.log('[Frontend] Fetching news for:', clientName);
+
+        const response = await fetch(apiUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ clientName })
+        });
+
+        if (!response.ok) throw new Error('News API Failed');
+
+        const xmlText = await response.text();
+        const parser = new DOMParser();
+        const xmlDoc = parser.parseFromString(xmlText, 'text/xml');
+        const items = xmlDoc.querySelectorAll('item');
+
+        const news: NewsItem[] = Array.from(items).slice(0, 5).map(item => {
+            const title = item.querySelector('title')?.textContent || 'No title';
+            const link = item.querySelector('link')?.textContent || '#';
+            const description = item.querySelector('description')?.textContent || '';
+            const pubDate = item.querySelector('pubDate')?.textContent || '';
+            const source = item.querySelector('source')?.textContent || 'Google News';
+
+            return {
+                title,
+                source,
+                url: link,
+                snippet: description.substring(0, 100) + '...',
+                date: pubDate ? new Date(pubDate).toLocaleDateString() : 'Recent'
+            };
+        });
+
+        return { news };
+    } catch (error) {
+        console.warn("Returning MOCK CLIENT NEWS (API Failure)", error);
+        return generateMockNews();
+    }
 };
 
 export const getIndustryNews = async (sourceName: string, url: string): Promise<{ news: NewsItem[], alerts: NewsItem[] }> => {
-    // RSS feed parsing requires backend due to CORS
-    // Returns mock data for demonstration
-    return {
+    const generateMockData = () => ({
         news: [
             {
                 title: "Latest trends in HR technology",
@@ -372,13 +428,60 @@ export const getIndustryNews = async (sourceName: string, url: string): Promise<
                 date: "2 hours ago"
             }
         ]
-    };
+    });
+
+    try {
+        // Use backend proxy to fetch RSS feed
+        const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001';
+        const apiUrl = `${backendUrl}/api/rss-feed`;
+        const token = localStorage.getItem('authToken') || 'DEV_TOKEN_REASONEX';
+
+        console.log('[Frontend] Fetching RSS feed:', url);
+
+        const response = await fetch(apiUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ url })
+        });
+
+        if (!response.ok) throw new Error('RSS Feed API Failed');
+
+        const xmlText = await response.text();
+        const parser = new DOMParser();
+        const xmlDoc = parser.parseFromString(xmlText, 'text/xml');
+        const items = xmlDoc.querySelectorAll('item');
+
+        const news: NewsItem[] = Array.from(items).slice(0, 10).map(item => {
+            const title = item.querySelector('title')?.textContent || 'No title';
+            const link = item.querySelector('link')?.textContent || url;
+            const description = item.querySelector('description')?.textContent || '';
+            const pubDate = item.querySelector('pubDate')?.textContent || '';
+
+            return {
+                title,
+                source: sourceName,
+                url: link,
+                snippet: description.substring(0, 150) + '...',
+                date: pubDate ? new Date(pubDate).toLocaleDateString() : 'Recent'
+            };
+        });
+
+        // Split into news (older) and alerts (recent)
+        const alerts = news.slice(0, 2);
+        const regularNews = news.slice(2);
+
+        return { news: regularNews, alerts };
+    } catch (error) {
+        console.warn("Returning MOCK INDUSTRY NEWS (API Failure)", error);
+        return generateMockData();
+    }
 };
 
 export const fetchBlogPosts = async (sourceName: string, url: string): Promise<NewsItem[]> => {
-    // Blog RSS parsing requires backend due to CORS
-    // Returns mock data for demonstration
-    return [
+    const generateMockBlogs = () => [
         {
             title: "5 tips for effective candidate sourcing",
             source: sourceName,
@@ -401,4 +504,49 @@ export const fetchBlogPosts = async (sourceName: string, url: string): Promise<N
             date: "1 week ago"
         }
     ];
+
+    try {
+        // Use backend proxy to fetch blog RSS feed
+        const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001';
+        const apiUrl = `${backendUrl}/api/rss-feed`;
+        const token = localStorage.getItem('authToken') || 'DEV_TOKEN_REASONEX';
+
+        console.log('[Frontend] Fetching blog posts from:', url);
+
+        const response = await fetch(apiUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ url })
+        });
+
+        if (!response.ok) throw new Error('Blog Feed API Failed');
+
+        const xmlText = await response.text();
+        const parser = new DOMParser();
+        const xmlDoc = parser.parseFromString(xmlText, 'text/xml');
+        const items = xmlDoc.querySelectorAll('item');
+
+        const blogs: NewsItem[] = Array.from(items).slice(0, 5).map(item => {
+            const title = item.querySelector('title')?.textContent || 'No title';
+            const link = item.querySelector('link')?.textContent || url;
+            const description = item.querySelector('description')?.textContent || '';
+            const pubDate = item.querySelector('pubDate')?.textContent || '';
+
+            return {
+                title,
+                source: sourceName,
+                url: link,
+                snippet: description.substring(0, 150) + '...',
+                date: pubDate ? new Date(pubDate).toLocaleDateString() : 'Recent'
+            };
+        });
+
+        return blogs;
+    } catch (error) {
+        console.warn("Returning MOCK BLOG POSTS (API Failure)", error);
+        return generateMockBlogs();
+    }
 };

@@ -2,6 +2,8 @@
 
 ## Quick Setup on Railway
 
+### First Time Setup
+
 1. **Connect to your PostgreSQL database** via Railway's dashboard or using psql:
    ```bash
    psql postgresql://username:password@host:port/database
@@ -20,6 +22,33 @@
    ```
 
    You should see: `clients`, `jobs`, `candidates`, `authorized_users`, `app_users`, `system_config`, `audit_logs`
+
+### Reset Database (Fresh Start)
+
+If you need to reset your database with updated configuration (like fixing webhook URLs):
+
+1. **Run the reset script first**:
+   ```bash
+   psql postgresql://your-connection-string < backend/reset-database.sql
+   ```
+
+   Or in Railway Query tab:
+   ```sql
+   DROP TABLE IF EXISTS audit_log CASCADE;
+   DROP TABLE IF EXISTS candidates CASCADE;
+   DROP TABLE IF EXISTS jobs CASCADE;
+   DROP TABLE IF EXISTS clients CASCADE;
+   DROP TABLE IF EXISTS system_config CASCADE;
+   DROP TABLE IF EXISTS authorized_users CASCADE;
+   ```
+
+2. **Then run schema.sql** to recreate with updated values:
+
+   ```bash
+   psql postgresql://your-connection-string < backend/schema.sql
+   ```
+
+   **WARNING**: This deletes all data. Only use for development/testing.
 
 ## What Gets Created
 

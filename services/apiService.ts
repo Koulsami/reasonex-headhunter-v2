@@ -245,12 +245,22 @@ export const api = {
 
   upsertCandidate: async (candidate: Candidate) => {
     try {
-        await fetch(`${API_BASE_URL}/candidates`, {
+        const response = await fetch(`${API_BASE_URL}/candidates`, {
             method: 'POST',
             headers: getHeaders(),
             body: JSON.stringify(candidate)
         });
-    } catch(e) {}
+
+        if (!response.ok) {
+            const errorText = await response.text().catch(() => 'Unknown error');
+            throw new Error(`Failed to save candidate: ${response.status} ${errorText}`);
+        }
+
+        console.log(`✓ Saved candidate: ${candidate.name}`);
+    } catch(e) {
+        console.error('Failed to save candidate:', candidate.name, e);
+        throw e; // Re-throw so Promise.all() can catch it
+    }
   },
 
   deleteCandidate: async (id: string) => {

@@ -267,6 +267,9 @@ const App: React.FC = () => {
             onRemoveEmail={handleRemoveEmail}
             onUpdateConfig={handleUpdateConfig}
             currentConfig={systemConfig}
+            candidates={candidates}
+            jobs={jobs}
+            users={users}
           />
         )}
       </main>

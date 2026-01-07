@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { api } from '../services/apiService';
-import { AuditLog, SystemStats, SystemConfig } from '../types';
+import { AuditLog, SystemStats, SystemConfig, Candidate, Job, User } from '../types';
 
 interface AdminPanelProps {
   allowedEmails: string[];
@@ -9,10 +9,13 @@ interface AdminPanelProps {
   onRemoveEmail: (email: string) => Promise<void>;
   onUpdateConfig: (config: SystemConfig) => Promise<void>;
   currentConfig?: SystemConfig;
+  candidates?: Candidate[];
+  jobs?: Job[];
+  users?: User[];
 }
 
-const AdminPanel: React.FC<AdminPanelProps> = ({ allowedEmails, onAddEmail, onRemoveEmail, onUpdateConfig, currentConfig }) => {
-  const [activeSubTab, setActiveSubTab] = useState<'dashboard' | 'integrations' | 'security' | 'logs'>('dashboard');
+const AdminPanel: React.FC<AdminPanelProps> = ({ allowedEmails, onAddEmail, onRemoveEmail, onUpdateConfig, currentConfig, candidates = [], jobs = [], users = [] }) => {
+  const [activeSubTab, setActiveSubTab] = useState<'dashboard' | 'integrations' | 'security' | 'logs' | 'reports'>('dashboard');
   
   // Data State
   const [stats, setStats] = useState<SystemStats | null>(null);
@@ -275,6 +278,178 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ allowedEmails, onAddEmail, onRe
       </div>
   );
 
+  const renderReports = () => {
+    // Calculate team-wide metrics
+    const totalCandidates = candidates.length;
+    const totalJobs = jobs.length;
+    const activeJobs = jobs.filter(j => j.status === 'Active').length;
+    const hiredCount = candidates.filter(c => c.stage === 'Hired').length;
+    const avgMatchScore = candidates.length > 0
+      ? Math.round(candidates.reduce((sum, c) => sum + c.matchScore, 0) / candidates.length)
+      : 0;
+
+    // Calculate per-recruiter metrics (exclude AI)
+    const recruiters = users.filter(u => u.role !== 'AI');
+    const recruiterStats = recruiters.map(user => {
+      const userCandidates = candidates.filter(c => c.assigneeId === user.id);
+      const userJobs = jobs.filter(j => j.assigneeId === user.id);
+      const userActiveJobs = userJobs.filter(j => j.status === 'Active');
+      const userHired = userCandidates.filter(c => c.stage === 'Hired').length;
+      const userAvgScore = userCandidates.length > 0
+        ? Math.round(userCandidates.reduce((sum, c) => sum + c.matchScore, 0) / userCandidates.length)
+        : 0;
+
+      // Stage distribution
+      const stageDistribution = {
+        'Identified': userCandidates.filter(c => c.stage === 'Identified').length,
+        'Analyzed': userCandidates.filter(c => c.stage === 'Analyzed').length,
+        'Contacted': userCandidates.filter(c => c.stage === 'Contacted').length,
+        'Screening': userCandidates.filter(c => c.stage === 'Screening').length,
+        'Interview': userCandidates.filter(c => c.stage === 'Interview').length,
+        'Offer': userCandidates.filter(c => c.stage === 'Offer').length,
+        'Hired': userHired,
+        'Rejected': userCandidates.filter(c => c.stage === 'Rejected').length,
+      };
+
+      return {
+        user,
+        totalCandidates: userCandidates.length,
+        activeJobs: userActiveJobs.length,
+        hired: userHired,
+        avgMatchScore: userAvgScore,
+        stageDistribution,
+        conversionRate: userCandidates.length > 0
+          ? Math.round((userHired / userCandidates.length) * 100)
+          : 0
+      };
+    });
+
+    return (
+      <div className="space-y-6 animate-fadeIn">
+        {/* Team Overview */}
+        <div className="bg-gradient-to-br from-purple-600 to-blue-600 text-white p-6 rounded-xl shadow-lg">
+          <h3 className="text-xl font-bold mb-4">Team Performance Overview</h3>
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+            <div>
+              <div className="text-3xl font-bold">{totalCandidates}</div>
+              <div className="text-sm text-purple-100">Total Candidates</div>
+            </div>
+            <div>
+              <div className="text-3xl font-bold">{activeJobs}</div>
+              <div className="text-sm text-purple-100">Active Jobs</div>
+            </div>
+            <div>
+              <div className="text-3xl font-bold">{hiredCount}</div>
+              <div className="text-sm text-purple-100">Placements</div>
+            </div>
+            <div>
+              <div className="text-3xl font-bold">{avgMatchScore}%</div>
+              <div className="text-sm text-purple-100">Avg Match Score</div>
+            </div>
+            <div>
+              <div className="text-3xl font-bold">
+                {totalCandidates > 0 ? Math.round((hiredCount / totalCandidates) * 100) : 0}%
+              </div>
+              <div className="text-sm text-purple-100">Conversion Rate</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Individual Recruiter Performance */}
+        <div>
+          <h3 className="text-lg font-bold text-slate-800 mb-4">Individual Recruiter Performance</h3>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {recruiterStats.map(stat => (
+              <div key={stat.user.id} className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                {/* Recruiter Header */}
+                <div className="p-4 bg-slate-50 border-b border-slate-200 flex items-center gap-3">
+                  <div className={`w-12 h-12 rounded-full flex items-center justify-center text-lg font-bold ${stat.user.color}`}>
+                    {stat.user.avatar}
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-slate-800">{stat.user.name}</h4>
+                    <p className="text-xs text-slate-500">{stat.user.role}</p>
+                  </div>
+                </div>
+
+                {/* Key Metrics */}
+                <div className="p-4 grid grid-cols-2 gap-4">
+                  <div>
+                    <div className="text-2xl font-bold text-slate-800">{stat.totalCandidates}</div>
+                    <div className="text-xs text-slate-500">Total Candidates</div>
+                  </div>
+                  <div>
+                    <div className="text-2xl font-bold text-green-600">{stat.hired}</div>
+                    <div className="text-xs text-slate-500">Placements</div>
+                  </div>
+                  <div>
+                    <div className="text-2xl font-bold text-blue-600">{stat.activeJobs}</div>
+                    <div className="text-xs text-slate-500">Active Jobs</div>
+                  </div>
+                  <div>
+                    <div className="text-2xl font-bold text-purple-600">{stat.avgMatchScore}%</div>
+                    <div className="text-xs text-slate-500">Avg Match</div>
+                  </div>
+                </div>
+
+                {/* Conversion Rate Bar */}
+                <div className="px-4 pb-4">
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="text-xs font-medium text-slate-600">Conversion Rate</span>
+                    <span className="text-xs font-bold text-slate-800">{stat.conversionRate}%</span>
+                  </div>
+                  <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
+                    <div
+                      className="bg-gradient-to-r from-green-500 to-emerald-600 h-full rounded-full transition-all duration-500"
+                      style={{ width: `${stat.conversionRate}%` }}
+                    />
+                  </div>
+                </div>
+
+                {/* Stage Distribution */}
+                <div className="p-4 border-t border-slate-100">
+                  <h5 className="text-xs font-bold text-slate-600 mb-3 uppercase">Pipeline Distribution</h5>
+                  <div className="space-y-2">
+                    {Object.entries(stat.stageDistribution).map(([stage, count]) => {
+                      const percentage = stat.totalCandidates > 0
+                        ? Math.round((count / stat.totalCandidates) * 100)
+                        : 0;
+                      const stageColors: Record<string, string> = {
+                        'Identified': 'bg-slate-400',
+                        'Analyzed': 'bg-blue-400',
+                        'Contacted': 'bg-cyan-400',
+                        'Screening': 'bg-yellow-400',
+                        'Interview': 'bg-orange-400',
+                        'Offer': 'bg-purple-400',
+                        'Hired': 'bg-green-500',
+                        'Rejected': 'bg-red-400'
+                      };
+                      return count > 0 ? (
+                        <div key={stage} className="flex items-center gap-2">
+                          <div className={`w-3 h-3 rounded-full ${stageColors[stage]}`}></div>
+                          <span className="text-xs text-slate-600 flex-1">{stage}</span>
+                          <span className="text-xs font-bold text-slate-700">{count}</span>
+                          <span className="text-xs text-slate-400 w-10 text-right">{percentage}%</span>
+                        </div>
+                      ) : null;
+                    })}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {recruiterStats.length === 0 && (
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-8 text-center">
+              <p className="text-slate-500">No recruiter performance data available yet.</p>
+              <p className="text-sm text-slate-400 mt-2">Start assigning candidates to team members to see performance metrics.</p>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="flex flex-col h-full space-y-6">
         {/* Admin Header */}
@@ -284,7 +459,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ allowedEmails, onAddEmail, onRe
                 <p className="text-slate-400 text-sm">System configuration, security monitoring, and integration management.</p>
             </div>
             <div className="flex bg-slate-700/50 p-1 rounded-lg">
-                {(['dashboard', 'integrations', 'security', 'logs'] as const).map(tab => (
+                {(['dashboard', 'reports', 'integrations', 'security', 'logs'] as const).map(tab => (
                     <button
                         key={tab}
                         onClick={() => setActiveSubTab(tab)}
@@ -301,6 +476,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ allowedEmails, onAddEmail, onRe
         {/* Content Area */}
         <div className="flex-1 min-h-0">
             {activeSubTab === 'dashboard' && renderDashboard()}
+            {activeSubTab === 'reports' && renderReports()}
             {activeSubTab === 'integrations' && renderIntegrations()}
             {activeSubTab === 'security' && renderSecurity()}
             {activeSubTab === 'logs' && renderLogs()}

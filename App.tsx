@@ -1,4 +1,4 @@
-
+// Reasonex Headhunter v2 - Railway Deployment
 import React, { useState, useEffect } from 'react';
 import { Candidate, Stage, Client, Job, User, SystemConfig } from './types';
 import SearchTab from './components/SearchTab';

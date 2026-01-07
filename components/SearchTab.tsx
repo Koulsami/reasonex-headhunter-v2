@@ -23,6 +23,7 @@ const SearchTab: React.FC<SearchTabProps> = ({ existingClients, users, onAddCand
   
   const [loading, setLoading] = useState(false);
   const [loadingStep, setLoadingStep] = useState<string>('');
+  const [loadingProgress, setLoadingProgress] = useState(0);
   
   const [rawResponse, setRawResponse] = useState<string>('');
   const [generatedCandidates, setGeneratedCandidates] = useState<Partial<Candidate>[]>([]);
@@ -54,51 +55,78 @@ const SearchTab: React.FC<SearchTabProps> = ({ existingClients, users, onAddCand
 
   const handleLinkedInSearch = async () => {
     if (!validateSearchInputs(true)) return;
-    
+
     setLoading(true);
+    setLoadingProgress(0);
     resetResults();
     setSearchSource('linkedin');
 
+    // Simulate progress bar animation
+    const progressInterval = setInterval(() => {
+      setLoadingProgress(prev => {
+        if (prev >= 90) return prev;
+        return prev + Math.random() * 15;
+      });
+    }, 500);
+
     try {
-      setLoadingStep('Connecting to HeadHunter Network...');
-      
+      setLoadingStep('Loading...');
+
       const jobContext = `${jobTitle}\n\n${jdText}`;
       console.log('Starting LinkedIn Search with:', { jobContext, country, numCandidatesAnalyze, numCandidatesOutput });
-      
+
       const searchResponse = await searchLinkedInCandidates(jobContext, country, numCandidatesAnalyze, numCandidatesOutput);
 
       console.log('Search response received', searchResponse);
       console.log('First candidate:', searchResponse.candidates[0]);
+
+      // Complete the progress bar
+      setLoadingProgress(100);
+
       setRawResponse(searchResponse.rawResponse);
       setGeneratedCandidates(searchResponse.candidates);
       console.log('Candidates set in state, first candidate:', searchResponse.candidates[0]);
-      
+
       if (searchResponse.candidates.length === 0) {
         alert("Search completed but no candidates were returned. Try adjusting your parameters or checking the Raw API Response.");
       }
-      
+
     } catch (err: any) {
       console.error("Search Error:", err);
       alert(`Failed to process LinkedIn search: ${err.message}`);
     } finally {
+      clearInterval(progressInterval);
       setLoading(false);
       setLoadingStep('');
+      setLoadingProgress(0);
     }
   };
 
   const handleResumeDBSearch = async () => {
     if (!validateSearchInputs()) return;
-    
+
     setLoading(true);
+    setLoadingProgress(0);
     resetResults();
     setSearchSource('db');
 
+    // Simulate progress bar animation
+    const progressInterval = setInterval(() => {
+      setLoadingProgress(prev => {
+        if (prev >= 90) return prev;
+        return prev + Math.random() * 15;
+      });
+    }, 500);
+
     try {
-      setLoadingStep('Searching Internal Resume Database...');
+      setLoadingStep('Loading...');
       const searchResponse = await searchInternalCandidates(jdText);
-      
+
+      // Complete the progress bar
+      setLoadingProgress(100);
+
       setRawResponse(searchResponse.rawResponse);
-      
+
       const candidates = searchResponse.candidates.map((m: any) => ({
         ...m,
         name: m.name,
@@ -114,23 +142,34 @@ const SearchTab: React.FC<SearchTabProps> = ({ existingClients, users, onAddCand
       console.error(err);
       alert("Failed to search internal database.");
     } finally {
+      clearInterval(progressInterval);
       setLoading(false);
       setLoadingStep('');
+      setLoadingProgress(0);
     }
   };
 
   const handleCombinedSearch = async () => {
     if (!validateSearchInputs(true)) return;
-    
+
     setLoading(true);
+    setLoadingProgress(0);
     resetResults();
     setSearchSource('combined');
 
+    // Simulate progress bar animation
+    const progressInterval = setInterval(() => {
+      setLoadingProgress(prev => {
+        if (prev >= 90) return prev;
+        return prev + Math.random() * 12;
+      });
+    }, 500);
+
     try {
-      setLoadingStep('Running comprehensive search (LinkedIn + Internal DB)...');
-      
+      setLoadingStep('Loading...');
+
       const jobContext = `${jobTitle}\n\n${jdText}`;
-      
+
       const [linkedInResponse, dbResponse] = await Promise.all([
         searchLinkedInCandidates(jobContext, country, numCandidatesAnalyze, numCandidatesOutput).catch(e => {
             console.error("LinkedIn search failed", e);
@@ -141,6 +180,9 @@ const SearchTab: React.FC<SearchTabProps> = ({ existingClients, users, onAddCand
             return { rawResponse: "{}", rawResults: [], candidates: [] };
         })
       ]);
+
+      // Complete the progress bar
+      setLoadingProgress(100);
 
       const processedDBCandidates = dbResponse.candidates.map((m: any) => ({
         ...m,
@@ -158,7 +200,7 @@ const SearchTab: React.FC<SearchTabProps> = ({ existingClients, users, onAddCand
           internal: JSON.parse(dbResponse.rawResponse || '{}')
       }));
       setGeneratedCandidates(mergedCandidates);
-      
+
       if (mergedCandidates.length === 0) {
         alert("Combined search completed but no candidates were returned.");
       }
@@ -167,8 +209,10 @@ const SearchTab: React.FC<SearchTabProps> = ({ existingClients, users, onAddCand
       console.error(err);
       alert("Failed to process combined search.");
     } finally {
+      clearInterval(progressInterval);
       setLoading(false);
       setLoadingStep('');
+      setLoadingProgress(0);
     }
   };
 
@@ -344,13 +388,20 @@ const SearchTab: React.FC<SearchTabProps> = ({ existingClients, users, onAddCand
           </div>
           <div className="flex justify-end gap-3 flex-wrap">
             {loading ? (
-              <button 
-                disabled
-                className="px-6 py-2.5 rounded-lg font-medium text-white bg-slate-400 cursor-not-allowed flex items-center gap-2"
-              >
-                <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                {loadingStep}
-              </button>
+              <div className="flex-1 max-w-md">
+                <div className="mb-2 flex justify-between items-center">
+                  <span className="text-sm font-medium text-slate-700">{loadingStep}</span>
+                  <span className="text-sm font-medium text-blue-600">{Math.round(loadingProgress)}%</span>
+                </div>
+                <div className="w-full bg-slate-200 rounded-full h-3 overflow-hidden shadow-inner">
+                  <div
+                    className="bg-gradient-to-r from-blue-500 via-purple-500 to-indigo-600 h-full rounded-full transition-all duration-500 ease-out shadow-lg"
+                    style={{ width: `${loadingProgress}%` }}
+                  >
+                    <div className="h-full w-full bg-gradient-to-r from-transparent via-white to-transparent opacity-30 animate-pulse"></div>
+                  </div>
+                </div>
+              </div>
             ) : (
               <>
                 <button 

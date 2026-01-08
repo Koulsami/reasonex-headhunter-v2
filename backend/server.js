@@ -331,6 +331,40 @@ app.delete('/api/jobs/:id', verifyToken, async (req, res) => {
     }
 });
 
+// --- USER/RECRUITER MANAGEMENT ENDPOINTS ---
+app.post('/api/users', verifyToken, async (req, res) => {
+    const { id, name, role, avatar, color } = req.body;
+    try {
+        await pool.query(
+            `INSERT INTO app_users (id, name, role, avatar, color, created_at)
+             VALUES ($1, $2, $3, $4, $5, NOW())
+             ON CONFLICT (id) DO UPDATE SET name=$2, role=$3, avatar=$4, color=$5`,
+            [id, name, role, avatar, color]
+        );
+        await logAudit(req.user.email, 'ADD_USER', 'user', id, { name, role });
+        res.json({ success: true });
+    } catch(err) {
+        console.error('Error adding user:', err);
+        res.status(500).json(err);
+    }
+});
+
+app.delete('/api/users/:id', verifyToken, async (req, res) => {
+    try {
+        // Get user details for audit log before deletion
+        const userResult = await pool.query('SELECT name FROM app_users WHERE id = $1', [req.params.id]);
+        const userName = userResult.rows[0]?.name || 'Unknown';
+
+        // Delete the user (ON DELETE SET NULL will unassign from candidates/jobs)
+        await pool.query('DELETE FROM app_users WHERE id = $1', [req.params.id]);
+        await logAudit(req.user.email, 'DELETE_USER', 'user', req.params.id, { name: userName });
+        res.json({ success: true });
+    } catch(err) {
+        console.error('Error deleting user:', err);
+        res.status(500).json(err);
+    }
+});
+
 // --- LINKEDIN PROXY ENDPOINT ---
 // Proxies requests to N8N webhook to avoid CORS issues
 app.post('/api/linkedin-search', verifyToken, async (req, res) => {

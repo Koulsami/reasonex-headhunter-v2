@@ -318,6 +318,79 @@ const App: React.FC = () => {
     setAllowedEmails(prev => prev.filter(e => e !== email));
   };
 
+  const handleAddRecruiter = async (recruiterData: { name: string; email: string; role: string }) => {
+    // Generate avatar initials from name
+    const nameParts = recruiterData.name.split(' ');
+    const avatar = nameParts.map(part => part[0]).join('').substring(0, 2).toUpperCase();
+
+    // Generate color based on role
+    const colors = {
+      'Recruiter': ['bg-green-100 text-green-700', 'bg-teal-100 text-teal-700', 'bg-cyan-100 text-cyan-700', 'bg-sky-100 text-sky-700'],
+      'Manager': ['bg-purple-100 text-purple-700', 'bg-indigo-100 text-indigo-700', 'bg-violet-100 text-violet-700']
+    };
+    const colorOptions = colors[recruiterData.role as 'Recruiter' | 'Manager'] || colors['Recruiter'];
+    const color = colorOptions[Math.floor(Math.random() * colorOptions.length)];
+
+    const newUser: User = {
+      id: uuidv4(),
+      name: recruiterData.name,
+      avatar: avatar,
+      role: recruiterData.role as 'Recruiter' | 'Manager' | 'AI',
+      color: color
+    };
+
+    // Add to database
+    const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001';
+    await fetch(`${backendUrl}/api/users`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('authToken') || 'DEV_TOKEN_REASONEX'}`
+      },
+      body: JSON.stringify(newUser)
+    });
+
+    // Update local state
+    setUsers(prev => [...prev, newUser]);
+
+    // Also add to authorized users list
+    await handleAddEmail(recruiterData.email);
+  };
+
+  const handleDeleteRecruiter = async (userId: string) => {
+    // Update candidates and jobs to unassign this recruiter
+    setCandidates(prev => prev.map(c => {
+      if (c.assigneeId === userId) {
+        const updated = { ...c, assigneeId: undefined };
+        api.upsertCandidate(updated);
+        return updated;
+      }
+      return c;
+    }));
+
+    setJobs(prev => prev.map(j => {
+      if (j.assigneeId === userId) {
+        const updated = { ...j, assigneeId: undefined };
+        api.upsertJob(updated);
+        return updated;
+      }
+      return j;
+    }));
+
+    // Delete user from database
+    const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001';
+    await fetch(`${backendUrl}/api/users/${userId}`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('authToken') || 'DEV_TOKEN_REASONEX'}`
+      }
+    });
+
+    // Update local state
+    setUsers(prev => prev.filter(u => u.id !== userId));
+  };
+
   const handleUpdateConfig = async (config: SystemConfig) => {
     await api.updateSystemConfig(config);
     setSystemConfig(config);
@@ -402,6 +475,8 @@ const App: React.FC = () => {
             clients={clients}
             onArchiveJob={handleArchiveJob}
             onDeleteJob={handleDeleteJob}
+            onAddRecruiter={handleAddRecruiter}
+            onDeleteRecruiter={handleDeleteRecruiter}
           />
         )}
       </main>

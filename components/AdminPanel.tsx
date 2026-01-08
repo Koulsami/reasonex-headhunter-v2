@@ -15,25 +15,32 @@ interface AdminPanelProps {
   clients?: any[]; // For showing client names in projects
   onArchiveJob: (jobId: string) => Promise<void>;
   onDeleteJob: (jobId: string) => Promise<void>;
+  onAddRecruiter: (recruiterData: { name: string; email: string; role: string }) => Promise<void>;
+  onDeleteRecruiter: (userId: string) => Promise<void>;
 }
 
-const AdminPanel: React.FC<AdminPanelProps> = ({ allowedEmails, onAddEmail, onRemoveEmail, onUpdateConfig, currentConfig, candidates = [], jobs = [], users = [], clients = [], onArchiveJob, onDeleteJob }) => {
+const AdminPanel: React.FC<AdminPanelProps> = ({ allowedEmails, onAddEmail, onRemoveEmail, onUpdateConfig, currentConfig, candidates = [], jobs = [], users = [], clients = [], onArchiveJob, onDeleteJob, onAddRecruiter, onDeleteRecruiter }) => {
   const [activeSubTab, setActiveSubTab] = useState<'dashboard' | 'projects' | 'integrations' | 'security' | 'logs' | 'reports'>('dashboard');
-  
+
   // Data State
   const [stats, setStats] = useState<SystemStats | null>(null);
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [loading, setLoading] = useState(false);
-  
+
   // Integration Config State
   const [configForm, setConfigForm] = useState<SystemConfig>({
       linkedinApiUrl: '',
       jobAlertsApiUrl: '',
       googleSearchEnabled: true
   });
-  
+
   // Security State
   const [newEmail, setNewEmail] = useState('');
+
+  // Recruiter Management State
+  const [newRecruiterName, setNewRecruiterName] = useState('');
+  const [newRecruiterEmail, setNewRecruiterEmail] = useState('');
+  const [newRecruiterRole, setNewRecruiterRole] = useState<'Recruiter' | 'Manager'>('Recruiter');
 
   // Initial Data Load
   useEffect(() => {
@@ -181,19 +188,60 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ allowedEmails, onAddEmail, onRe
       </div>
   );
 
+  const handleAddRecruiter = async () => {
+    if (!newRecruiterName.trim() || !newRecruiterEmail.trim()) {
+      alert('Please enter both name and email');
+      return;
+    }
+
+    try {
+      await onAddRecruiter({
+        name: newRecruiterName.trim(),
+        email: newRecruiterEmail.trim(),
+        role: newRecruiterRole
+      });
+      setNewRecruiterName('');
+      setNewRecruiterEmail('');
+      setNewRecruiterRole('Recruiter');
+      alert('Recruiter added successfully');
+    } catch (error) {
+      alert('Failed to add recruiter');
+    }
+  };
+
+  const handleDeleteRecruiter = async (userId: string, userName: string) => {
+    const candidateCount = candidates.filter(c => c.assigneeId === userId).length;
+    const jobCount = jobs.filter(j => j.assigneeId === userId).length;
+
+    const confirmMessage = (candidateCount > 0 || jobCount > 0)
+      ? `⚠️ WARNING: ${userName} has ${candidateCount} assigned candidate(s) and ${jobCount} assigned project(s).\n\nThese will become unassigned. Delete anyway?`
+      : `Delete recruiter "${userName}"?`;
+
+    if (window.confirm(confirmMessage)) {
+      try {
+        await onDeleteRecruiter(userId);
+        alert('Recruiter deleted successfully');
+      } catch (error) {
+        alert('Failed to delete recruiter');
+      }
+    }
+  };
+
   const renderSecurity = () => (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-fadeIn">
+    <div className="space-y-6 animate-fadeIn">
+      {/* Authorized Users Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-1 bg-white rounded-xl border border-slate-200 shadow-sm p-6">
              <h3 className="font-bold text-slate-800 mb-4">Add Authorized User</h3>
              <div className="space-y-3">
-                 <input 
-                   type="email" 
+                 <input
+                   type="email"
                    value={newEmail}
                    onChange={(e) => setNewEmail(e.target.value)}
                    className="w-full p-2 border border-slate-300 rounded-lg text-sm"
                    placeholder="user@company.com"
                  />
-                 <button 
+                 <button
                    onClick={handleAddEmail}
                    className="w-full py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700"
                  >
@@ -203,7 +251,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ allowedEmails, onAddEmail, onRe
              <div className="mt-6 pt-6 border-t border-slate-100">
                  <h4 className="font-bold text-slate-800 mb-2 text-sm">Access Policy</h4>
                  <p className="text-xs text-slate-500 leading-relaxed">
-                     Users must log in with a Google Account matching an email in the allowed list. 
+                     Users must log in with a Google Account matching an email in the allowed list.
                      Admins have full access to this dashboard. Standard users only see the Recruitment Dashboard.
                  </p>
              </div>
@@ -223,7 +271,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ allowedEmails, onAddEmail, onRe
                              </div>
                              <span className="text-sm font-medium text-slate-700">{email}</span>
                          </div>
-                         <button 
+                         <button
                            onClick={() => onRemoveEmail(email)}
                            className="text-red-500 hover:text-red-700 text-xs font-medium px-2 py-1 rounded border border-transparent hover:border-red-200 hover:bg-red-50"
                          >
@@ -233,6 +281,111 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ allowedEmails, onAddEmail, onRe
                  ))}
              </div>
         </div>
+      </div>
+
+      {/* Recruiter Management Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-1 bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+          <h3 className="font-bold text-slate-800 mb-4">Add Recruiter</h3>
+          <div className="space-y-3">
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Full Name</label>
+              <input
+                type="text"
+                value={newRecruiterName}
+                onChange={(e) => setNewRecruiterName(e.target.value)}
+                className="w-full p-2 border border-slate-300 rounded-lg text-sm"
+                placeholder="e.g. John Doe"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Email</label>
+              <input
+                type="email"
+                value={newRecruiterEmail}
+                onChange={(e) => setNewRecruiterEmail(e.target.value)}
+                className="w-full p-2 border border-slate-300 rounded-lg text-sm"
+                placeholder="recruiter@company.com"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Role</label>
+              <select
+                value={newRecruiterRole}
+                onChange={(e) => setNewRecruiterRole(e.target.value as 'Recruiter' | 'Manager')}
+                className="w-full p-2 border border-slate-300 rounded-lg text-sm"
+              >
+                <option value="Recruiter">Recruiter</option>
+                <option value="Manager">Manager</option>
+              </select>
+            </div>
+            <button
+              onClick={handleAddRecruiter}
+              className="w-full py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700"
+            >
+              Add Recruiter
+            </button>
+          </div>
+          <div className="mt-6 pt-6 border-t border-slate-100">
+            <h4 className="font-bold text-slate-800 mb-2 text-sm">About Recruiters</h4>
+            <p className="text-xs text-slate-500 leading-relaxed">
+              Recruiters appear in assignment dropdowns across the app. They can be assigned to projects and candidates.
+              Remember to also add their email to "Authorized Users" if they need login access.
+            </p>
+          </div>
+        </div>
+
+        <div className="lg:col-span-2 bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="p-4 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
+            <h3 className="font-bold text-slate-800">Team Members</h3>
+            <span className="bg-slate-200 text-slate-600 text-xs px-2 py-1 rounded-full">{users.filter(u => u.role !== 'AI').length} Members</span>
+          </div>
+          <div className="divide-y divide-slate-100 max-h-[500px] overflow-y-auto">
+            {users.filter(u => u.role !== 'AI').map(user => {
+              const candidateCount = candidates.filter(c => c.assigneeId === user.id).length;
+              const jobCount = jobs.filter(j => j.assigneeId === user.id).length;
+
+              return (
+                <div key={user.id} className="p-4 flex justify-between items-center hover:bg-slate-50 transition-colors">
+                  <div className="flex items-center gap-3 flex-1">
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold ${user.color || 'bg-slate-200 text-slate-500'}`}>
+                      {user.avatar}
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-semibold text-slate-800">{user.name}</span>
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                          user.role === 'Manager' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'
+                        }`}>
+                          {user.role}
+                        </span>
+                      </div>
+                      <div className="flex gap-3 text-xs text-slate-500 mt-1">
+                        <span>{candidateCount} candidate{candidateCount !== 1 ? 's' : ''}</span>
+                        <span>•</span>
+                        <span>{jobCount} project{jobCount !== 1 ? 's' : ''}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => handleDeleteRecruiter(user.id, user.name)}
+                    className="text-red-500 hover:text-red-700 text-xs font-medium px-3 py-1.5 rounded border border-transparent hover:border-red-200 hover:bg-red-50 transition-colors"
+                  >
+                    Delete
+                  </button>
+                </div>
+              );
+            })}
+
+            {users.filter(u => u.role !== 'AI').length === 0 && (
+              <div className="p-8 text-center text-slate-400">
+                <p>No recruiters found.</p>
+                <p className="text-xs mt-1">Add team members using the form on the left.</p>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   );
 

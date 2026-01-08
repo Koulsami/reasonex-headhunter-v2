@@ -6,6 +6,9 @@ const cors = require('cors');
 const { OAuth2Client } = require('google-auth-library');
 const fetch = require('node-fetch');
 
+// Multi-tenant middleware
+const { extractTenant, validateTenantAccess, validateResourceTenant } = require('./middleware/tenant');
+
 const app = express();
 const port = process.env.PORT || 3001;
 
@@ -15,12 +18,18 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false } // Required for Railway
 });
 
+// Make pool available to middleware via app.locals
+app.locals.pool = pool;
+
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 const ADMIN_EMAIL = 'koulsam08@gmail.com'; // Hardcoded fallback admin
 
 // Enable CORS for all routes - Critical for cross-domain usage (Frontend -> Backend on Railway)
 app.use(cors());
 app.use(express.json());
+
+// Extract tenant from request (subdomain/domain/header)
+app.use(extractTenant);
 
 // --- MIDDLEWARE: Auth & Logging ---
 
@@ -33,16 +42,19 @@ const verifyToken = async (req, res, next) => {
   // --- DEVELOPER BACKDOOR ---
   // Allows access without valid Google OAuth configuration for testing
   if (token === 'DEV_TOKEN_REASONEX') {
-      req.user = { 
+      req.user = {
           email: ADMIN_EMAIL,
           name: 'Developer Admin',
           picture: ''
       };
       // Auto-whitelist admin in DB if missing during dev login
       try {
-        await pool.query('INSERT INTO authorized_users (email, role) VALUES ($1, $2) ON CONFLICT DO NOTHING', [ADMIN_EMAIL, 'admin']);
-      } catch (e) { 
-        console.error('Dev Auto-whitelist failed (Table might not exist yet)', e.message); 
+        await pool.query(
+            'INSERT INTO authorized_users (email, role, tenant_id) VALUES ($1, $2, $3) ON CONFLICT (email, tenant_id) DO NOTHING',
+            [ADMIN_EMAIL, 'admin', req.tenantId]
+        );
+      } catch (e) {
+        console.error('Dev Auto-whitelist failed (Table might not exist yet)', e.message);
       }
       return next();
   }
@@ -56,17 +68,28 @@ const verifyToken = async (req, res, next) => {
     const payload = ticket.getPayload();
     req.user = payload;
 
-    // Check Whitelist
-    const result = await pool.query('SELECT * FROM authorized_users WHERE email = $1', [payload.email]);
-    
+    // Check Whitelist WITH tenant filtering
+    const result = await pool.query(
+        'SELECT * FROM authorized_users WHERE email = $1 AND tenant_id = $2',
+        [payload.email, req.tenantId]
+    );
+
     // Auto-allow the hardcoded admin if not in DB yet
     if (result.rows.length === 0 && payload.email !== ADMIN_EMAIL) {
-       return res.status(403).json({ error: 'User not authorized', email: payload.email });
+       return res.status(403).json({
+           error: 'User not authorized',
+           email: payload.email,
+           tenant: req.tenantId,
+           message: `Email ${payload.email} is not authorized for tenant ${req.tenantId}`
+       });
     }
 
     // Update last login
     if (result.rows.length > 0) {
-        await pool.query('UPDATE authorized_users SET last_login_at = NOW() WHERE email = $1', [payload.email]);
+        await pool.query(
+            'UPDATE authorized_users SET last_login_at = NOW() WHERE email = $1 AND tenant_id = $2',
+            [payload.email, req.tenantId]
+        );
     }
 
     next();
@@ -87,11 +110,11 @@ const verifyAdmin = async (req, res, next) => {
     return res.status(403).json({ error: 'Admin access required' });
 };
 
-const logAudit = async (email, eventType, resourceType, resourceId, payload) => {
+const logAudit = async (email, eventType, resourceType, resourceId, payload, tenantId = 'reasonex') => {
   try {
     await pool.query(
-      'INSERT INTO audit_logs (actor_email, event_type, resource_type, resource_id, payload) VALUES ($1, $2, $3, $4, $5)',
-      [email, eventType, resourceType, resourceId, payload]
+      'INSERT INTO audit_logs (actor_email, event_type, resource_type, resource_id, payload, tenant_id) VALUES ($1, $2, $3, $4, $5, $6)',
+      [email, eventType, resourceType, resourceId, payload, tenantId]
     );
   } catch (e) {
     console.error('Audit Log Failed:', e.message);
@@ -111,11 +134,11 @@ app.get('/api/init', verifyToken, async (req, res) => {
     // Wrap queries in try/catch to handle cases where tables might not exist yet
     let clients = { rows: [] }, jobs = { rows: [] }, candidates = { rows: [] }, users = { rows: [] }, allowedUsers = { rows: [] };
     
-    try { clients = await pool.query('SELECT * FROM clients'); } catch(e) { console.warn("Clients table missing"); }
-    try { jobs = await pool.query('SELECT * FROM jobs'); } catch(e) { console.warn("Jobs table missing"); }
-    try { candidates = await pool.query('SELECT * FROM candidates'); } catch(e) { console.warn("Candidates table missing"); }
-    try { users = await pool.query('SELECT * FROM app_users'); } catch(e) { console.warn("Users table missing"); }
-    try { allowedUsers = await pool.query('SELECT email FROM authorized_users'); } catch(e) { console.warn("Auth users table missing"); }
+    try { clients = await pool.query('SELECT * FROM clients WHERE tenant_id = $1', [req.tenantId]); } catch(e) { console.warn("Clients table missing"); }
+    try { jobs = await pool.query('SELECT * FROM jobs WHERE tenant_id = $1', [req.tenantId]); } catch(e) { console.warn("Jobs table missing"); }
+    try { candidates = await pool.query('SELECT * FROM candidates WHERE tenant_id = $1', [req.tenantId]); } catch(e) { console.warn("Candidates table missing"); }
+    try { users = await pool.query('SELECT * FROM app_users WHERE tenant_id = $1', [req.tenantId]); } catch(e) { console.warn("Users table missing"); }
+    try { allowedUsers = await pool.query('SELECT email FROM authorized_users WHERE tenant_id = $1', [req.tenantId]); } catch(e) { console.warn("Auth users table missing"); }
     
     // Fetch Config
     let config = {
@@ -156,8 +179,8 @@ app.get('/api/init', verifyToken, async (req, res) => {
 app.post('/api/admin/users', verifyToken, verifyAdmin, async (req, res) => {
   const { email } = req.body;
   try {
-    await pool.query('INSERT INTO authorized_users (email, role) VALUES ($1, $2) ON CONFLICT DO NOTHING', [email, 'user']);
-    await logAudit(req.user.email, 'ADD_USER', 'auth', null, { added_email: email });
+    await pool.query('INSERT INTO authorized_users (email, role, tenant_id) VALUES ($1, $2, $3) ON CONFLICT (email, tenant_id) DO NOTHING', [email, 'user', req.tenantId]);
+    await logAudit(req.user.email, 'ADD_USER', 'auth', null, { added_email: email }, req.tenantId);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -166,10 +189,10 @@ app.post('/api/admin/users', verifyToken, verifyAdmin, async (req, res) => {
 
 app.delete('/api/admin/users/:email', verifyToken, verifyAdmin, async (req, res) => {
   if (req.params.email === ADMIN_EMAIL) return res.status(400).json({ error: "Cannot delete super admin" });
-  
+
   try {
-    await pool.query('DELETE FROM authorized_users WHERE email = $1', [req.params.email]);
-    await logAudit(req.user.email, 'REMOVE_USER', 'auth', null, { removed_email: req.params.email });
+    await pool.query('DELETE FROM authorized_users WHERE email = $1 AND tenant_id = $2', [req.params.email, req.tenantId]);
+    await logAudit(req.user.email, 'REMOVE_USER', 'auth', null, { removed_email: req.params.email }, req.tenantId);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -245,7 +268,7 @@ app.post('/api/admin/config', verifyToken, verifyAdmin, async (req, res) => {
 
         // Try to log audit (optional)
         try {
-            await logAudit(req.user.email, 'UPDATE_CONFIG', 'system', null, { linkedinApiUrl });
+            await logAudit(req.user.email, 'UPDATE_CONFIG', 'system', null, { linkedinApiUrl }, req.tenantId);
         } catch (auditErr) {
             console.warn('Audit log table not found');
         }
@@ -266,8 +289,8 @@ app.post('/api/clients', verifyToken, async (req, res) => {
     const { id, name, industry, website } = req.body;
     try {
         await pool.query(
-            'INSERT INTO clients (id, name, industry, website) VALUES ($1, $2, $3, $4) ON CONFLICT (id) DO UPDATE SET name=$2, industry=$3, website=$4',
-            [id, name, industry, website]
+            'INSERT INTO clients (id, name, industry, website, tenant_id) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (id) DO UPDATE SET name=$2, industry=$3, website=$4 WHERE clients.tenant_id = $5',
+            [id, name, industry, website, req.tenantId]
         );
         res.json({ success: true });
     } catch(err) { res.status(500).json(err); }
@@ -277,12 +300,12 @@ app.post('/api/jobs', verifyToken, async (req, res) => {
     const { id, clientId, assigneeId, title, description, status, createdAt, country, city, experienceLevel, employmentType } = req.body;
     try {
         await pool.query(
-            `INSERT INTO jobs (id, client_id, assignee_id, title, description, status, created_at, country, city, experience_level, employment_type)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-             ON CONFLICT (id) DO UPDATE SET status=$6, assignee_id=$3, country=$8, city=$9, experience_level=$10, employment_type=$11`,
-            [id, clientId, assigneeId, title, description, status, createdAt, country, city, experienceLevel, employmentType]
+            `INSERT INTO jobs (id, client_id, assignee_id, title, description, status, created_at, country, city, experience_level, employment_type, tenant_id)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+             ON CONFLICT (id) DO UPDATE SET status=$6, assignee_id=$3, country=$8, city=$9, experience_level=$10, employment_type=$11 WHERE jobs.tenant_id = $12`,
+            [id, clientId, assigneeId, title, description, status, createdAt, country, city, experienceLevel, employmentType, req.tenantId]
         );
-        await logAudit(req.user.email, 'UPSERT_JOB', 'job', id, { title, country, experienceLevel });
+        await logAudit(req.user.email, 'UPSERT_JOB', 'job', id, { title, country, experienceLevel }, req.tenantId);
         res.json({ success: true });
     } catch(err) {
         console.error('Error upserting job:', err);
@@ -297,20 +320,20 @@ app.post('/api/candidates', verifyToken, async (req, res) => {
 
     try {
         await pool.query(
-            `INSERT INTO candidates (id, job_id, assignee_id, name, "current_role", "current_company", stage, match_score, email, linkedin_url, source, added_at, ai_analysis)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
-             ON CONFLICT (id) DO UPDATE SET stage=$7, assignee_id=$3, match_score=$8`,
-            [id, jobId, assigneeId, name, role, company, stage, matchScore, email, linkedinUrl, source, addedAt, aiAnalysis]
+            `INSERT INTO candidates (id, job_id, assignee_id, name, "current_role", "current_company", stage, match_score, email, linkedin_url, source, added_at, ai_analysis, tenant_id)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+             ON CONFLICT (id) DO UPDATE SET stage=$7, assignee_id=$3, match_score=$8 WHERE candidates.tenant_id = $14`,
+            [id, jobId, assigneeId, name, role, company, stage, matchScore, email, linkedinUrl, source, addedAt, aiAnalysis, req.tenantId]
         );
-        await logAudit(req.user.email, 'UPSERT_CANDIDATE', 'candidate', id, { name, stage });
+        await logAudit(req.user.email, 'UPSERT_CANDIDATE', 'candidate', id, { name, stage }, req.tenantId);
         res.json({ success: true });
     } catch(err) { res.status(500).json(err); }
 });
 
 app.delete('/api/candidates/:id', verifyToken, async (req, res) => {
     try {
-        await pool.query('DELETE FROM candidates WHERE id = $1', [req.params.id]);
-        await logAudit(req.user.email, 'DELETE_CANDIDATE', 'candidate', req.params.id, {});
+        await pool.query('DELETE FROM candidates WHERE id = $1 AND tenant_id = $2', [req.params.id, req.tenantId]);
+        await logAudit(req.user.email, 'DELETE_CANDIDATE', 'candidate', req.params.id, {}, req.tenantId);
         res.json({ success: true });
     } catch(err) { res.status(500).json(err); }
 });
@@ -318,12 +341,12 @@ app.delete('/api/candidates/:id', verifyToken, async (req, res) => {
 app.delete('/api/jobs/:id', verifyToken, async (req, res) => {
     try {
         // Get job details for audit log before deletion
-        const jobResult = await pool.query('SELECT title FROM jobs WHERE id = $1', [req.params.id]);
+        const jobResult = await pool.query('SELECT title FROM jobs WHERE id = $1 AND tenant_id = $2', [req.params.id, req.tenantId]);
         const jobTitle = jobResult.rows[0]?.title || 'Unknown';
 
         // Delete the job (CASCADE will automatically delete associated candidates)
-        await pool.query('DELETE FROM jobs WHERE id = $1', [req.params.id]);
-        await logAudit(req.user.email, 'DELETE_JOB', 'job', req.params.id, { title: jobTitle });
+        await pool.query('DELETE FROM jobs WHERE id = $1 AND tenant_id = $2', [req.params.id, req.tenantId]);
+        await logAudit(req.user.email, 'DELETE_JOB', 'job', req.params.id, { title: jobTitle }, req.tenantId);
         res.json({ success: true });
     } catch(err) {
         console.error('Error deleting job:', err);
@@ -341,7 +364,7 @@ app.post('/api/users', verifyToken, async (req, res) => {
              ON CONFLICT (id) DO UPDATE SET name=$2, role=$3, avatar=$4, color=$5`,
             [id, name, role, avatar, color]
         );
-        await logAudit(req.user.email, 'ADD_USER', 'user', id, { name, role });
+        await logAudit(req.user.email, 'ADD_USER', 'user', id, { name, role }, req.tenantId);
         res.json({ success: true });
     } catch(err) {
         console.error('Error adding user:', err);
@@ -352,12 +375,12 @@ app.post('/api/users', verifyToken, async (req, res) => {
 app.delete('/api/users/:id', verifyToken, async (req, res) => {
     try {
         // Get user details for audit log before deletion
-        const userResult = await pool.query('SELECT name FROM app_users WHERE id = $1', [req.params.id]);
+        const userResult = await pool.query('SELECT name FROM app_users WHERE id = $1 AND tenant_id = $2', [req.params.id, req.tenantId]);
         const userName = userResult.rows[0]?.name || 'Unknown';
 
         // Delete the user (ON DELETE SET NULL will unassign from candidates/jobs)
-        await pool.query('DELETE FROM app_users WHERE id = $1', [req.params.id]);
-        await logAudit(req.user.email, 'DELETE_USER', 'user', req.params.id, { name: userName });
+        await pool.query('DELETE FROM app_users WHERE id = $1 AND tenant_id = $2', [req.params.id, req.tenantId]);
+        await logAudit(req.user.email, 'DELETE_USER', 'user', req.params.id, { name: userName }, req.tenantId);
         res.json({ success: true });
     } catch(err) {
         console.error('Error deleting user:', err);
@@ -424,7 +447,7 @@ app.post('/api/linkedin-search', verifyToken, async (req, res) => {
 
         // Log audit (ignore if table doesn't exist)
         try {
-            await logAudit(req.user.email, 'LINKEDIN_SEARCH', 'search', null, { country, candidates_output: num_candidates_output });
+            await logAudit(req.user.email, 'LINKEDIN_SEARCH', 'search', null, { country, candidates_output: num_candidates_output }, req.tenantId);
         } catch (auditErr) {
             console.warn('Audit log failed (table may not exist yet)');
         }
@@ -487,7 +510,7 @@ app.post('/api/job-alerts', verifyToken, async (req, res) => {
 
         // Log audit
         try {
-            await logAudit(req.user.email, 'JOB_ALERTS_FETCH', 'intelligence', null, {});
+            await logAudit(req.user.email, 'JOB_ALERTS_FETCH', 'intelligence', null, {}, req.tenantId);
         } catch (auditErr) {
             console.warn('Audit log failed');
         }

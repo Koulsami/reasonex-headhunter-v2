@@ -315,6 +315,22 @@ app.delete('/api/candidates/:id', verifyToken, async (req, res) => {
     } catch(err) { res.status(500).json(err); }
 });
 
+app.delete('/api/jobs/:id', verifyToken, async (req, res) => {
+    try {
+        // Get job details for audit log before deletion
+        const jobResult = await pool.query('SELECT title FROM jobs WHERE id = $1', [req.params.id]);
+        const jobTitle = jobResult.rows[0]?.title || 'Unknown';
+
+        // Delete the job (CASCADE will automatically delete associated candidates)
+        await pool.query('DELETE FROM jobs WHERE id = $1', [req.params.id]);
+        await logAudit(req.user.email, 'DELETE_JOB', 'job', req.params.id, { title: jobTitle });
+        res.json({ success: true });
+    } catch(err) {
+        console.error('Error deleting job:', err);
+        res.status(500).json(err);
+    }
+});
+
 // --- LINKEDIN PROXY ENDPOINT ---
 // Proxies requests to N8N webhook to avoid CORS issues
 app.post('/api/linkedin-search', verifyToken, async (req, res) => {

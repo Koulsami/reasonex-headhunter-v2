@@ -236,6 +236,38 @@ const App: React.FC = () => {
     }));
   };
 
+  const handleArchiveJob = async (jobId: string) => {
+    setJobs(prev => prev.map(j => {
+      if (j.id === jobId) {
+        const updated = { ...j, status: 'Suspended' as const };
+        api.upsertJob(updated); // Sync to DB
+        return updated;
+      }
+      return j;
+    }));
+  };
+
+  const handleDeleteJob = async (jobId: string) => {
+    // Remove all candidates associated with this job
+    const candidatesToDelete = candidates.filter(c => c.jobId === jobId);
+    for (const candidate of candidatesToDelete) {
+      await api.deleteCandidate(candidate.id);
+    }
+    setCandidates(prev => prev.filter(c => c.jobId !== jobId));
+
+    // Delete the job via API
+    await fetch(`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001'}/api/jobs/${jobId}`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('authToken') || 'DEV_TOKEN_REASONEX'}`
+      }
+    });
+
+    // Remove from local state
+    setJobs(prev => prev.filter(j => j.id !== jobId));
+  };
+
   const handleRemoveCandidate = (candidateId: string) => {
     if (window.confirm("Delete this candidate?")) {
       setCandidates(prev => prev.filter(c => c.id !== candidateId));
@@ -367,6 +399,9 @@ const App: React.FC = () => {
             candidates={candidates}
             jobs={jobs}
             users={users}
+            clients={clients}
+            onArchiveJob={handleArchiveJob}
+            onDeleteJob={handleDeleteJob}
           />
         )}
       </main>

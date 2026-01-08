@@ -12,10 +12,13 @@ interface AdminPanelProps {
   candidates?: Candidate[];
   jobs?: Job[];
   users?: User[];
+  clients?: any[]; // For showing client names in projects
+  onArchiveJob: (jobId: string) => Promise<void>;
+  onDeleteJob: (jobId: string) => Promise<void>;
 }
 
-const AdminPanel: React.FC<AdminPanelProps> = ({ allowedEmails, onAddEmail, onRemoveEmail, onUpdateConfig, currentConfig, candidates = [], jobs = [], users = [] }) => {
-  const [activeSubTab, setActiveSubTab] = useState<'dashboard' | 'integrations' | 'security' | 'logs' | 'reports'>('dashboard');
+const AdminPanel: React.FC<AdminPanelProps> = ({ allowedEmails, onAddEmail, onRemoveEmail, onUpdateConfig, currentConfig, candidates = [], jobs = [], users = [], clients = [], onArchiveJob, onDeleteJob }) => {
+  const [activeSubTab, setActiveSubTab] = useState<'dashboard' | 'projects' | 'integrations' | 'security' | 'logs' | 'reports'>('dashboard');
   
   // Data State
   const [stats, setStats] = useState<SystemStats | null>(null);
@@ -450,6 +453,159 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ allowedEmails, onAddEmail, onRe
     );
   };
 
+  const renderProjects = () => {
+    const handleArchive = async (jobId: string) => {
+      if (window.confirm('Archive this project? It will be marked as "Suspended" and hidden from active searches.')) {
+        try {
+          await onArchiveJob(jobId);
+          alert('Project archived successfully');
+        } catch (error) {
+          alert('Failed to archive project');
+        }
+      }
+    };
+
+    const handleDelete = async (jobId: string, jobTitle: string) => {
+      const candidateCount = candidates.filter(c => c.jobId === jobId).length;
+      const confirmMessage = candidateCount > 0
+        ? `⚠️ WARNING: This will permanently delete "${jobTitle}" and ${candidateCount} candidate(s)!\n\nThis action CANNOT be undone. Are you absolutely sure?`
+        : `Delete "${jobTitle}"? This action cannot be undone.`;
+
+      if (window.confirm(confirmMessage)) {
+        try {
+          await onDeleteJob(jobId);
+          alert('Project deleted successfully');
+        } catch (error) {
+          alert('Failed to delete project');
+        }
+      }
+    };
+
+    return (
+      <div className="space-y-6 animate-fadeIn">
+        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+          <h3 className="text-lg font-semibold text-slate-800 mb-4">Project Management</h3>
+          <p className="text-sm text-slate-600 mb-6">Manage all recruitment projects. Archive inactive projects or permanently delete them.</p>
+
+          <div className="space-y-3">
+            {jobs.map(job => {
+              const client = clients.find(c => c.id === job.clientId);
+              const candidateCount = candidates.filter(c => c.jobId === job.id).length;
+              const assignee = users.find(u => u.id === job.assigneeId);
+
+              return (
+                <div key={job.id} className="bg-slate-50 border border-slate-200 rounded-lg p-4 hover:shadow-md transition-all">
+                  <div className="flex justify-between items-start gap-4">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-2">
+                        <h4 className="text-lg font-bold text-slate-800">{job.title}</h4>
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-bold uppercase ${
+                          job.status === 'Active' ? 'bg-green-100 text-green-700' :
+                          job.status === 'Suspended' ? 'bg-yellow-100 text-yellow-700' :
+                          job.status === 'Closed' ? 'bg-slate-100 text-slate-600' :
+                          'bg-red-100 text-red-700'
+                        }`}>
+                          {job.status}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm mb-3">
+                        <div>
+                          <span className="text-xs text-slate-500 block">Client</span>
+                          <span className="font-semibold text-slate-700">{client?.name || 'Unknown'}</span>
+                        </div>
+                        <div>
+                          <span className="text-xs text-slate-500 block">Candidates</span>
+                          <span className="font-semibold text-slate-700">{candidateCount}</span>
+                        </div>
+                        <div>
+                          <span className="text-xs text-slate-500 block">Location</span>
+                          <span className="font-semibold text-slate-700">
+                            {job.city ? `${job.city}, ${job.country}` : job.country || 'Not set'}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-xs text-slate-500 block">Assigned to</span>
+                          <span className="font-semibold text-slate-700">{assignee?.name || 'Unassigned'}</span>
+                        </div>
+                      </div>
+
+                      {(job.experienceLevel || job.employmentType) && (
+                        <div className="flex gap-2 text-xs">
+                          {job.experienceLevel && (
+                            <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded">{job.experienceLevel}</span>
+                          )}
+                          {job.employmentType && (
+                            <span className="bg-purple-100 text-purple-700 px-2 py-1 rounded">{job.employmentType}</span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex flex-col gap-2">
+                      {job.status === 'Active' && (
+                        <button
+                          onClick={() => handleArchive(job.id)}
+                          className="px-4 py-2 rounded-lg text-sm font-medium bg-yellow-100 text-yellow-700 hover:bg-yellow-200 transition-colors flex items-center gap-2"
+                          title="Archive Project"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="21 8 21 21 3 21 3 8"></polyline>
+                            <rect x="1" y="3" width="22" height="5"></rect>
+                            <line x1="10" y1="12" x2="14" y2="12"></line>
+                          </svg>
+                          Archive
+                        </button>
+                      )}
+                      <button
+                        onClick={() => handleDelete(job.id, job.title)}
+                        className="px-4 py-2 rounded-lg text-sm font-medium bg-red-100 text-red-700 hover:bg-red-200 transition-colors flex items-center gap-2"
+                        title="Delete Project Permanently"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M3 6h18"></path>
+                          <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
+                          <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
+                        </svg>
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+
+            {jobs.length === 0 && (
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-8 text-center">
+                <p className="text-slate-500">No projects found.</p>
+                <p className="text-sm text-slate-400 mt-2">Create a project from the Search tab to get started.</p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Info Box */}
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <div className="flex gap-3">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-blue-600 flex-shrink-0 mt-0.5">
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="12" y1="16" x2="12" y2="12"></line>
+              <line x1="12" y1="8" x2="12.01" y2="8"></line>
+            </svg>
+            <div className="text-sm text-blue-800">
+              <p className="font-semibold mb-1">About Project Management:</p>
+              <ul className="space-y-1 list-disc list-inside">
+                <li><strong>Archive:</strong> Changes status to "Suspended" - hides from active searches but keeps all data</li>
+                <li><strong>Delete:</strong> Permanently removes project and all associated candidates (cannot be undone)</li>
+                <li>Archived projects can be manually reactivated by changing status back to "Active" in the database</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="flex flex-col h-full space-y-6">
         {/* Admin Header */}
@@ -459,7 +615,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ allowedEmails, onAddEmail, onRe
                 <p className="text-slate-400 text-sm">System configuration, security monitoring, and integration management.</p>
             </div>
             <div className="flex bg-slate-700/50 p-1 rounded-lg">
-                {(['dashboard', 'reports', 'integrations', 'security', 'logs'] as const).map(tab => (
+                {(['dashboard', 'projects', 'reports', 'integrations', 'security', 'logs'] as const).map(tab => (
                     <button
                         key={tab}
                         onClick={() => setActiveSubTab(tab)}
@@ -476,6 +632,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ allowedEmails, onAddEmail, onRe
         {/* Content Area */}
         <div className="flex-1 min-h-0">
             {activeSubTab === 'dashboard' && renderDashboard()}
+            {activeSubTab === 'projects' && renderProjects()}
             {activeSubTab === 'reports' && renderReports()}
             {activeSubTab === 'integrations' && renderIntegrations()}
             {activeSubTab === 'security' && renderSecurity()}

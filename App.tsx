@@ -61,11 +61,88 @@ const App: React.FC = () => {
 
   // --- ACTIONS ---
 
+  // NEW: Create Project Handler
+  const handleCreateProject = async (projectData: {
+    clientName: string;
+    position: string;
+    country: string;
+    city: string;
+    experienceLevel: string;
+    employmentType: string;
+  }): Promise<Job> => {
+    // 1. Handle Client
+    let client = clients.find(c => c.name.toLowerCase() === projectData.clientName.toLowerCase());
+    if (!client) {
+      client = { id: uuidv4(), name: projectData.clientName, industry: 'Technology' };
+      setClients(prev => [...prev, client!]);
+      await api.upsertClient(client);
+    }
+
+    // 2. Create Job/Project with all fields
+    const job: Job = {
+      id: uuidv4(),
+      clientId: client.id,
+      assigneeId: currentUser?.id,
+      title: projectData.position,
+      description: '',
+      status: 'Active',
+      createdAt: new Date().toISOString(),
+      country: projectData.country,
+      city: projectData.city,
+      experienceLevel: projectData.experienceLevel as any,
+      employmentType: projectData.employmentType as any
+    };
+
+    setJobs(prev => [...prev, job]);
+    await api.upsertJob(job);
+
+    return job;
+  };
+
+  // NEW: Add candidates to existing job/project
+  const handleAddCandidatesToJob = async (jobId: string, newCandidates: Partial<Candidate>[], assigneeId: string) => {
+    const job = jobs.find(j => j.id === jobId);
+    if (!job) {
+      alert('Project not found');
+      return;
+    }
+
+    // Format and add candidates
+    const formattedCandidates: Candidate[] = newCandidates.map(c => ({
+      ...c,
+      id: uuidv4(),
+      jobId: job.id,
+      assigneeId: assigneeId || currentUser?.id,
+      stage: 'Identified',
+      addedAt: new Date().toISOString(),
+      matchScore: c.matchScore || 50,
+      name: c.name || 'Unknown',
+      role: c.role || 'Unknown',
+      company: c.company || 'Unknown',
+      email: c.email || '',
+    } as Candidate));
+
+    setCandidates(prev => [...prev, ...formattedCandidates]);
+
+    // Save all candidates to backend
+    try {
+      await Promise.all(formattedCandidates.map(c => api.upsertCandidate(c)));
+      console.log(`✓ Saved ${formattedCandidates.length} candidates to database`);
+      alert(`Successfully added ${formattedCandidates.length} candidates to the pipeline!`);
+    } catch (error) {
+      console.error('Failed to save candidates:', error);
+      alert('Warning: Some candidates may not have been saved to the database');
+    }
+
+    setActiveTab('kanban');
+  };
+
+  // LEGACY: Keep for backward compatibility (if needed elsewhere)
   const handleCreateJobAndAddCandidates = async (clientName: string, jobTitle: string, jdText: string, newCandidates: Partial<Candidate>[], assigneeId?: string) => {
     // 1. Handle Client
     let client = clients.find(c => c.name.toLowerCase() === clientName.toLowerCase());
     if (!client) {
-      client = { id: uuidv4(), name: clientName, industry: 'Technology' }; 
+      client = { id: uuidv4(), name: clientName, industry: 'Technology' };
       setClients(prev => [...prev, client!]);
       await api.upsertClient(client);
     }
@@ -73,14 +150,14 @@ const App: React.FC = () => {
     // 2. Handle Job
     let job = jobs.find(j => j.clientId === client!.id && j.title.toLowerCase() === jobTitle.toLowerCase());
     if (!job) {
-      job = { 
-        id: uuidv4(), 
-        clientId: client.id, 
+      job = {
+        id: uuidv4(),
+        clientId: client.id,
         assigneeId: assigneeId || currentUser?.id,
-        title: jobTitle, 
-        description: jdText, 
-        status: 'Active', 
-        createdAt: new Date().toISOString() 
+        title: jobTitle,
+        description: jdText,
+        status: 'Active',
+        createdAt: new Date().toISOString()
       };
       setJobs(prev => [...prev, job!]);
       await api.upsertJob(job);
@@ -91,7 +168,7 @@ const App: React.FC = () => {
       ...c,
       id: uuidv4(),
       jobId: job!.id,
-      assigneeId: assigneeId || currentUser?.id, 
+      assigneeId: assigneeId || currentUser?.id,
       stage: 'Identified',
       addedAt: new Date().toISOString(),
       matchScore: c.matchScore || 50,
@@ -255,10 +332,12 @@ const App: React.FC = () => {
 
       <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
         {activeTab === 'search' && (
-          <SearchTab 
-            existingClients={clients} 
+          <SearchTab
+            existingClients={clients}
+            existingJobs={jobs}
             users={users}
-            onAddCandidates={handleCreateJobAndAddCandidates} 
+            onAddCandidates={handleAddCandidatesToJob}
+            onCreateProject={handleCreateProject}
           />
         )}
         {activeTab === 'kanban' && (

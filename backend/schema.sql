@@ -44,7 +44,7 @@ CREATE TABLE clients (
     created_at TIMESTAMP DEFAULT NOW()
 );
 
--- Jobs Table
+-- Jobs Table (Projects)
 CREATE TABLE jobs (
     id VARCHAR(50) PRIMARY KEY,
     client_id VARCHAR(50) REFERENCES clients(id) ON DELETE CASCADE,
@@ -52,7 +52,12 @@ CREATE TABLE jobs (
     title VARCHAR(255) NOT NULL,
     description TEXT,
     status VARCHAR(50) DEFAULT 'Active',
-    created_at TIMESTAMP DEFAULT NOW()
+    created_at TIMESTAMP DEFAULT NOW(),
+    -- Project-specific fields
+    country VARCHAR(100),
+    city VARCHAR(100),
+    experience_level VARCHAR(50),  -- 'Entry Level', 'Mid Level', 'Senior Level', 'Executive'
+    employment_type VARCHAR(50)    -- 'Full-time', 'Contract', 'Part-time', 'Temporary'
 );
 
 -- Candidates Table

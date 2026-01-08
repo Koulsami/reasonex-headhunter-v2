@@ -36,7 +36,17 @@ export interface Client {
 }
 
 /**
- * A specific Job Opening / Requisition.
+ * Experience level for a job position (aligned with LinkedIn)
+ */
+export type ExperienceLevel = 'Entry Level' | 'Mid Level' | 'Senior Level' | 'Executive';
+
+/**
+ * Employment type for a position
+ */
+export type EmploymentType = 'Full-time' | 'Contract' | 'Part-time' | 'Temporary';
+
+/**
+ * A specific Job Opening / Requisition (also called "Project").
  */
 export interface Job {
   id: string;
@@ -46,6 +56,12 @@ export interface Job {
   description?: string;
   status: 'Active' | 'Closed' | 'Suspended' | 'Expired';
   createdAt: string; // ISO Date String
+
+  // Project-specific fields
+  country?: string; // Location - Country
+  city?: string; // Location - City
+  experienceLevel?: ExperienceLevel; // Seniority level
+  employmentType?: EmploymentType; // Contract or Full-time
 }
 
 /**

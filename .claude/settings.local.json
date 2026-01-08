@@ -9,7 +9,16 @@
       "Bash(git remote add:*)",
       "Bash(git branch:*)",
       "Bash(git push:*)",
-      "Bash(npm install:*)"
+      "Bash(npm install:*)",
+      "Bash(where:*)",
+      "Bash(node init-db.js:*)",
+      "Bash(node add-admin-user.js:*)",
+      "Bash(node add-recruiter.js:*)",
+      "Bash(node check-candidates.js:*)",
+      "Bash(node check-audit-logs.js:*)",
+      "Bash(git rm:*)",
+      "Bash(node backend/check-candidates.js:*)",
+      "Bash(node:*)"
     ]
   }
 }

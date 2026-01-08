@@ -274,15 +274,20 @@ app.post('/api/clients', verifyToken, async (req, res) => {
 });
 
 app.post('/api/jobs', verifyToken, async (req, res) => {
-    const { id, clientId, assigneeId, title, description, status, createdAt } = req.body;
+    const { id, clientId, assigneeId, title, description, status, createdAt, country, city, experienceLevel, employmentType } = req.body;
     try {
         await pool.query(
-            'INSERT INTO jobs (id, client_id, assignee_id, title, description, status, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7) ON CONFLICT (id) DO UPDATE SET status=$6, assignee_id=$3',
-            [id, clientId, assigneeId, title, description, status, createdAt]
+            `INSERT INTO jobs (id, client_id, assignee_id, title, description, status, created_at, country, city, experience_level, employment_type)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+             ON CONFLICT (id) DO UPDATE SET status=$6, assignee_id=$3, country=$8, city=$9, experience_level=$10, employment_type=$11`,
+            [id, clientId, assigneeId, title, description, status, createdAt, country, city, experienceLevel, employmentType]
         );
-        await logAudit(req.user.email, 'UPSERT_JOB', 'job', id, { title });
+        await logAudit(req.user.email, 'UPSERT_JOB', 'job', id, { title, country, experienceLevel });
         res.json({ success: true });
-    } catch(err) { res.status(500).json(err); }
+    } catch(err) {
+        console.error('Error upserting job:', err);
+        res.status(500).json(err);
+    }
 });
 
 app.post('/api/candidates', verifyToken, async (req, res) => {

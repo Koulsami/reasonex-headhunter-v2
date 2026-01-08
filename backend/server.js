@@ -472,13 +472,17 @@ app.post('/api/job-alerts', verifyToken, async (req, res) => {
 
         console.log('Job Alerts API Response status:', response.status);
 
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.error('Job Alerts API Error:', errorText);
-            throw new Error(`Job Alerts API returned ${response.status}: ${errorText}`);
+        const data = await response.json();
+        console.log('Job Alerts API raw response:', JSON.stringify(data).substring(0, 200));
+
+        // Check if N8N returned an error
+        if (!response.ok || data.code === 0 || data.message === 'No item to return was found') {
+            const errorMessage = data.message || `API returned status ${response.status}`;
+            console.error('Job Alerts API Error:', errorMessage);
+            console.error('N8N Workflow Issue: The webhook is not configured correctly or has no data');
+            throw new Error(`N8N Webhook Error: ${errorMessage}. Please configure the N8N workflow to return job alerts data.`);
         }
 
-        const data = await response.json();
         console.log('Job Alerts data received:', data?.alerts?.length || data?.results?.length || 'unknown count');
 
         // Log audit
